@@ -19,3 +19,4 @@ while True:
         print("خطا:", str(e))
 
     time.sleep(300)  # هر ۵ دقیقه اجرا
+print("Deploy to Render")
