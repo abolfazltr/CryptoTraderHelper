@@ -5,19 +5,11 @@ import numpy as np
 def generate_signal(prices):
     try:
         df = pd.DataFrame(prices)
-
-        # محاسبه EMA و RSI
         df['EMA20'] = ta.ema(df['close'], length=20)
         df['EMA50'] = ta.ema(df['close'], length=50)
         df['RSI'] = ta.rsi(df['close'], length=14)
 
-        # حذف کامل ردیف‌هایی که مقدار NaN دارند
-        df.dropna(inplace=True)
-
-        # اگر بعد از dropna چیزی باقی نموند
-        if df.empty:
-            print("دیتافریم خالیه بعد از dropna")
-            return None
+        df.dropna(inplace=True)  # خط خیلی مهم برای حذف NaNها
 
         latest = df.iloc[-1]
 
@@ -27,7 +19,6 @@ def generate_signal(prices):
             return "short"
         else:
             return None
-
     except Exception as e:
         print("خطا در تحلیل استراتژی:", str(e))
         return None
