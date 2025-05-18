@@ -1,4 +1,5 @@
 import time
+from utils.price import get_price_data
 from utils.strategy import generate_signal
 from utils.gmx import open_position
 
@@ -10,7 +11,9 @@ TOKEN = "WETH"
 def main():
     while True:
         try:
-            signal = generate_signal()
+            prices = get_price_data("ETHUSDT", "5m", 100)
+            signal = generate_signal(prices)
+
             if signal in ["long", "short"]:
                 print(f"سیگنال دریافت شد: {signal}")
                 open_position(signal, LEVERAGE, AMOUNT_USD, TOKEN)
