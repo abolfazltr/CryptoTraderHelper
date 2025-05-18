@@ -1,10 +1,12 @@
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
+from numpy import nan as NaN  # رفع خطای NaN
 
 def generate_signal(prices):
     try:
-        df = pd.DataFrame(prices)  # prices باید شامل لیستی از کندل‌ها باشه
+        df = pd.DataFrame(prices)  # باید شامل لیستی از کندل‌ها باشه
+
         df['EMA20'] = ta.ema(df['close'], length=20)
         df['EMA50'] = ta.ema(df['close'], length=50)
         df['RSI'] = ta.rsi(df['close'], length=14)
