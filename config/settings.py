@@ -3,6 +3,7 @@ import os
 # خواندن مقادیر از Secrets
 RPC_URL = os.getenv("RPC_URL")
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+ACCOUNT_ADDRESS = os.getenv("ACCOUNT_ADDRESS")
 
 # تنظیمات ثابت ترید
 AMOUNT_IN_USD = 20  # مقدار سرمایه به دلار
