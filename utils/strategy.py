@@ -1,37 +1,24 @@
 import pandas as pd
-import requests
+import numpy as np
+npNaN = np.nan
 import pandas_ta as ta
 
-def fetch_ohlcv(symbol="ETHUSDT", interval="5m", limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
-    response = requests.get(url)
-    data = response.json()
-
-    df = pd.DataFrame(data, columns=[
-        "timestamp", "open", "high", "low", "close", "volume",
-        "_", "_", "_", "_", "_", "_"
-    ])
-    df["close"] = df["close"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    return df
-
 def generate_signal():
-    df = fetch_ohlcv("ETHUSDT", "5m")
+    # فرض بر اینه که دیتای قیمت رو از جایی بگیری (مثلاً API)
+    df = pd.DataFrame()  # اینجا باید دیتا پر بشه
 
-    # محاسبه SuperTrend با تنظیمات 2, 3, 10
-    st = ta.supertrend(df["high"], df["low"], df["close"], length=10, multiplier=3)
-    df = pd.concat([df, st], axis=1)
+    # اگر دیتا کافی نبود سیگنال نده
+    if df.empty or len(df) < 100:
+        return None
 
-    latest = df.iloc[-1]
-    prev = df.iloc[-2]
+    # محاسبه EMA
+    df["EMA20"] = ta.ema(df["close"], length=20)
+    df["EMA50"] = ta.ema(df["close"], length=50)
 
-    # سیگنال Long: وقتی close بالای Supertrend بشه و trend تغییر کنه
-    if prev["SUPERT_10_3.0"] > prev["close"] and latest["SUPERT_10_3.0"] < latest["close"]:
+    # سیگنال گرفتن از تقاطع EMA
+    if df["EMA20"].iloc[-1] > df["EMA50"].iloc[-1] and df["EMA20"].iloc[-2] <= df["EMA50"].iloc[-2]:
         return "long"
-
-    # سیگنال Short: وقتی close زیر Supertrend بره و trend تغییر کنه
-    if prev["SUPERT_10_3.0"] < prev["close"] and latest["SUPERT_10_3.0"] > latest["close"]:
+    elif df["EMA20"].iloc[-1] < df["EMA50"].iloc[-1] and df["EMA20"].iloc[-2] >= df["EMA50"].iloc[-2]:
         return "short"
-
-    return None
+    else:
+        return None
