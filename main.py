@@ -9,7 +9,7 @@ while True:
 
         if signal in ["long", "short"]:
             print("Opening position for:", signal)
-            open_position(signal)
+            open_position(signal, leverage=5, amount_usd=20, token="WETH")
         else:
             print("No valid signal found.")
 
