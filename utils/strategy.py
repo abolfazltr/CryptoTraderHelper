@@ -1,24 +1,23 @@
 import pandas as pd
-import numpy as np
-npNaN = np.nan
 import pandas_ta as ta
+import numpy as np
 
-def generate_signal():
-    # فرض بر اینه که دیتای قیمت رو از جایی بگیری (مثلاً API)
-    df = pd.DataFrame()  # اینجا باید دیتا پر بشه
+def generate_signal(prices):
+    try:
+        df = pd.DataFrame(prices)  # prices باید شامل لیستی از کندل‌ها باشه
+        df['EMA20'] = ta.ema(df['close'], length=20)
+        df['EMA50'] = ta.ema(df['close'], length=50)
+        df['RSI'] = ta.rsi(df['close'], length=14)
 
-    # اگر دیتا کافی نبود سیگنال نده
-    if df.empty or len(df) < 100:
-        return None
+        latest = df.iloc[-1]
 
-    # محاسبه EMA
-    df["EMA20"] = ta.ema(df["close"], length=20)
-    df["EMA50"] = ta.ema(df["close"], length=50)
+        if latest['EMA20'] > latest['EMA50'] and latest['RSI'] < 70:
+            return "long"
+        elif latest['EMA20'] < latest['EMA50'] and latest['RSI'] > 30:
+            return "short"
+        else:
+            return None
 
-    # سیگنال گرفتن از تقاطع EMA
-    if df["EMA20"].iloc[-1] > df["EMA50"].iloc[-1] and df["EMA20"].iloc[-2] <= df["EMA50"].iloc[-2]:
-        return "long"
-    elif df["EMA20"].iloc[-1] < df["EMA50"].iloc[-1] and df["EMA20"].iloc[-2] >= df["EMA50"].iloc[-2]:
-        return "short"
-    else:
+    except Exception as e:
+        print("خطا در تحلیل استراتژی:", str(e))
         return None

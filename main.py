@@ -1,22 +1,27 @@
-from datetime import datetime
 import time
-from utils.strategy import generate_signal
-from utils.gmx import open_position
+from strategy import generate_signal
+from gmx import open_position
 
-while True:
-    try:
-        print("\n[", datetime.now(), "] Checking for signal...")
-        signal = generate_signal()
-        print("Signal:", signal)
+# تنظیمات پوزیشن
+LEVERAGE = 5
+AMOUNT_USD = 20
+TOKEN = "WETH"
 
-        if signal in ["long", "short"]:
-            print("Opening position for:", signal)
-            open_position(signal, leverage=5, amount_usd=20, token="WETH")
-        else:
-            print("No valid signal found.")
+def main():
+    while True:
+        try:
+            signal = generate_signal()
+            if signal in ["long", "short"]:
+                print(f"سیگنال دریافت شد: {signal}")
+                open_position(signal, LEVERAGE, AMOUNT_USD, TOKEN)
+            else:
+                print("سیگنالی برای ورود وجود ندارد.")
 
-    except Exception as e:
-        print("خطا:", str(e))
+        except Exception as e:
+            print("خطا در اجرای ربات:", str(e))
 
-    print("Waiting 5 minutes...")
-    time.sleep(300)
+        time.sleep(300)  # ۵ دقیقه صبر کن
+
+
+if __name__ == "__main__":
+    main()
