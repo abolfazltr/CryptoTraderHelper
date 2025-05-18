@@ -19,3 +19,10 @@ def get_price_data(symbol="ETHUSDT", interval="5m", limit=100):
     except Exception as e:
         print("خطا در دریافت قیمت:", str(e))
         return None
+
+# تابعی که در gmx.py نیاز است
+def get_current_price(symbol="ETHUSDT"):
+    df = get_price_data(symbol)
+    if df is not None and not df.empty:
+        return df['close'].iloc[-1]
+    return None
