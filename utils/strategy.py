@@ -1,40 +1,37 @@
+import pandas as pd
 import requests
+import pandas_ta as ta
 
-def generate_signal():
-    url = "https://api.binance.com/api/v3/klines"
-    params = {
-        "symbol": "ETHUSDT",
-        "interval": "5m",
-        "limit": 50
-    }
-    response = requests.get(url, params=params)
+def fetch_ohlcv(symbol="ETHUSDT", interval="5m", limit=100):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    response = requests.get(url)
     data = response.json()
 
-    closes = [float(candle[4]) for candle in data if len(candle) > 4]
+    df = pd.DataFrame(data, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "_", "_", "_", "_", "_", "_"
+    ])
+    df["close"] = df["close"].astype(float)
+    df["high"] = df["high"].astype(float)
+    df["low"] = df["low"].astype(float)
+    return df
 
-    if len(closes) < 21:
-        return "none"
+def generate_signal():
+    df = fetch_ohlcv("ETHUSDT", "5m")
 
-    ema9 = sum(closes[-9:]) / 9
-    ema21 = sum(closes[-21:]) / 21
+    # محاسبه SuperTrend با تنظیمات 2, 3, 10
+    st = ta.supertrend(df["high"], df["low"], df["close"], length=10, multiplier=3)
+    df = pd.concat([df, st], axis=1)
 
-    rsi_period = 14
-    gains, losses = [], []
-    for i in range(1, rsi_period + 1):
-        diff = closes[-i] - closes[-i - 1]
-        if diff > 0:
-            gains.append(diff)
-        else:
-            losses.append(abs(diff))
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
 
-    avg_gain = sum(gains) / rsi_period
-    avg_loss = sum(losses) / rsi_period if losses else 1
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-
-    if ema9 > ema21 and rsi < 70:
+    # سیگنال Long: وقتی close بالای Supertrend بشه و trend تغییر کنه
+    if prev["SUPERT_10_3.0"] > prev["close"] and latest["SUPERT_10_3.0"] < latest["close"]:
         return "long"
-    elif ema9 < ema21 and rsi > 30:
+
+    # سیگنال Short: وقتی close زیر Supertrend بره و trend تغییر کنه
+    if prev["SUPERT_10_3.0"] < prev["close"] and latest["SUPERT_10_3.0"] > latest["close"]:
         return "short"
-    else:
-        return "none"
+
+    return None

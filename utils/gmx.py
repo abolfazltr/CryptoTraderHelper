@@ -1,66 +1,110 @@
 import json
 from web3 import Web3
-from config.settings import RPC_URL, PRIVATE_KEY
+from utils.price import get_current_price
+from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
 
-web3 = Web3(Web3.HTTPProvider(RPC_URL))
-account = web3.eth.account.from_key(PRIVATE_KEY)
-wallet_address = account.address
-
-with open('abi/PositionRouter.json') as f:
+# بارگذاری ABIها
+with open("abi/PositionRouter.json") as f:
     position_router_abi = json.load(f)
-with open('abi/Vault.json') as f:
+
+with open("abi/Vault.json") as f:
     vault_abi = json.load(f)
 
-POSITION_ROUTER_ADDRESS = '0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868'
-VAULT_ADDRESS = '0x489ee077994B6658eAfA855C308275EAd8097C4A'
-WETH_ADDRESS = web3.to_checksum_address('0x82af49447d8a07e3bd95bd0d56f35241523fbab1')
+# آدرس قراردادها
+POSITION_ROUTER = "0x1B70F1f6D1DfA56bB4432A0F8F8f998C30753E52"
+VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"  # توکن معامله
 
-position_router = web3.eth.contract(address=POSITION_ROUTER_ADDRESS, abi=position_router_abi)
-vault = web3.eth.contract(address=VAULT_ADDRESS, abi=vault_abi)
+# اتصال به شبکه
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
+account = w3.eth.account.from_key(PRIVATE_KEY)
 
-def get_token_price(token, is_max=True):
-    if is_max:
-        return vault.functions.getMaxPrice(token).call()
-    else:
-        return vault.functions.getMinPrice(token).call()
+position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
+vault = w3.eth.contract(address=VAULT, abi=vault_abi)
+
 
 def open_position(signal, leverage, amount_usd, token):
+    entry_price = get_current_price(token)
+    if not entry_price:
+        print("خطا در دریافت قیمت")
+        return
+
     is_long = signal == "long"
-    collateral_token = WETH_ADDRESS
-    index_token = WETH_ADDRESS
-    path = [WETH_ADDRESS]
-
-    price = get_token_price(index_token, is_max=not is_long) / 1e30
-    amount_in_eth = amount_usd / price
-    amount_in_wei = int(amount_in_eth * 1e18)
-    size_delta = amount_in_wei * leverage
-
-    acceptable_price = int(get_token_price(index_token, is_max=not is_long) * (1.03 if is_long else 0.97))
-    execution_fee = web3.to_wei(0.0003, 'ether')
+    amount_in = w3.to_wei(amount_usd / entry_price, 'ether')
+    size_delta = w3.to_wei(amount_usd * leverage, 'ether')
+    acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 1e30)
+    execution_fee = w3.to_wei(0.0003, 'ether')
     referral_code = b'\x00' * 32
-    callback_target = '0x0000000000000000000000000000000000000000'
+    path = [WETH]
+    index_token = WETH
+    min_out = 0
 
-    tx = position_router.functions.createIncreasePosition(
+    params = [
         path,
         index_token,
-        amount_in_wei,
-        0,
+        amount_in,
+        min_out,
         size_delta,
-        collateral_token,
-        wallet_address,
-        acceptable_price,
         is_long,
+        acceptable_price,
         execution_fee,
-        referral_code,
-        callback_target
-    ).build_transaction({
-        'from': wallet_address,
-        'value': execution_fee,
-        'gas': 800000,
-        'gasPrice': web3.to_wei('2', 'gwei'),
-        'nonce': web3.eth.get_transaction_count(wallet_address),
-    })
+        referral_code
+    ]
 
-    signed_tx = web3.eth.account.sign_transaction(tx, PRIVATE_KEY)
-    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print(f"[+] پوزیشن ارسال شد! Tx Hash: {web3.to_hex(tx_hash)}")
+    try:
+        tx = position_router.functions.createIncreasePosition(*params).build_transaction({
+            "from": ACCOUNT_ADDRESS,
+            "value": execution_fee,
+            "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
+            "gas": 800000,
+            "gasPrice": w3.eth.gas_price
+        })
+
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
+        print(f"\nپوزیشن {signal.upper()} باز شد.")
+        print(f"قیمت ورود: {entry_price:.4f}")
+        print("TX Hash:", w3.to_hex(tx_hash))
+
+        # بعد از باز کردن پوزیشن، حد سود و ضرر رو ست کن
+        set_tp_sl(signal, entry_price, size_delta, token)
+
+    except Exception as e:
+        print("خطا در باز کردن پوزیشن:", str(e))
+
+
+def set_tp_sl(signal, entry_price, size_delta, token):
+    is_long = signal == "long"
+    tp_price = entry_price * (1 + 0.03) if is_long else entry_price * (1 - 0.03)
+    sl_price = entry_price * (1 - 0.02) if is_long else entry_price * (1 + 0.02)
+
+    acceptable_tp = int(tp_price * 1e30)
+    acceptable_sl = int(sl_price * 1e30)
+
+    for price, label in [(acceptable_tp, "TP"), (acceptable_sl, "SL")]:
+        try:
+            tx = position_router.functions.createDecreasePosition(
+                [token],                # path
+                token,                 # indexToken
+                0,                     # collateralDelta = 0
+                size_delta,            # sizeDelta
+                is_long,
+                ACCOUNT_ADDRESS,
+                price,
+                label == "TP"          # TP: triggerAbove=True, SL: False
+            ).build_transaction({
+                "from": ACCOUNT_ADDRESS,
+                "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
+                "gas": 800000,
+                "gasPrice": w3.eth.gas_price
+            })
+
+            signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
+            print(f"{label} ثبت شد در قیمت: {price / 1e30:.4f}")
+            print("TX:", w3.to_hex(tx_hash))
+
+        except Exception as e:
+            print(f"خطا در ثبت {label}:", str(e))

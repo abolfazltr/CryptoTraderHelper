@@ -1,9 +1,11 @@
+from datetime import datetime
 import time
 from utils.strategy import generate_signal
 from utils.gmx import open_position
 
 while True:
     try:
+        print("\n[", datetime.now(), "] Checking for signal...")
         signal = generate_signal()
         print("Signal:", signal)
 
@@ -16,5 +18,5 @@ while True:
     except Exception as e:
         print("خطا:", str(e))
 
-    time.sleep(300)
     print("Waiting 5 minutes...")
+    time.sleep(300)
