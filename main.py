@@ -1,6 +1,6 @@
 import time
-from strategy import generate_signal
-from gmx import open_position
+from utils.strategy import generate_signal
+from utils.gmx import open_position
 
 # تنظیمات پوزیشن
 LEVERAGE = 5
@@ -16,12 +16,10 @@ def main():
                 open_position(signal, LEVERAGE, AMOUNT_USD, TOKEN)
             else:
                 print("سیگنالی برای ورود وجود ندارد.")
-
         except Exception as e:
             print("خطا در اجرای ربات:", str(e))
 
         time.sleep(300)  # ۵ دقیقه صبر کن
-
 
 if __name__ == "__main__":
     main()
