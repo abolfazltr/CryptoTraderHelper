@@ -1,22 +1,20 @@
+import time
 from utils.strategy import generate_signal
 from utils.gmx import open_position
-import time
-
-last_signal = None
 
 while True:
     try:
         signal = generate_signal()
-        print("سیگنال فعلی:", signal)
+        print("Signal:", signal)
 
-        if signal in ["long", "short"] and signal != last_signal:
+        if signal in ["long", "short"]:
+            print("Opening position for:", signal)
             open_position(signal)
-            last_signal = signal
         else:
-            print("پوزیشن قبلاً باز شده یا سیگنال معتبر نیست.")
+            print("No valid signal found.")
 
     except Exception as e:
         print("خطا:", str(e))
 
-    time.sleep(300)  # هر ۵ دقیقه اجرا
-print("Deploy to Render")
+    time.sleep(300)
+    print("Waiting 5 minutes...")
