@@ -1,33 +1,39 @@
 import requests
 import pandas as pd
+from datetime import datetime, timedelta
 
-def get_ohlcv(symbol="ETHUSDT", interval="5m", limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+def get_ohlcv(symbol="ethereum", interval="5m", limit=100):
     try:
-        response = requests.get(url, timeout=10)
+        end_time = int(datetime.utcnow().timestamp())
+        start_time = end_time - (limit * 5 * 60)
+
+        url = f"https://api.coingecko.com/api/v3/coins/{symbol}/market_chart/range"
+        params = {
+            "vs_currency": "usd",
+            "from": start_time,
+            "to": end_time
+        }
+
+        response = requests.get(url, params=params, timeout=10)
         if response.status_code != 200:
-            print("Binance API error:", response.text)
+            print("Coingecko API error:", response.text)
             return None
 
         data = response.json()
-        if not data:
-            print("Empty data from Binance.")
+        prices = data.get("prices", [])
+        if not prices:
+            print("Empty OHLCV from Coingecko")
             return None
 
-        df = pd.DataFrame(data, columns=[
-            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-            'close_time', 'quote_asset_volume', 'number_of_trades',
-            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-        ])
+        df = pd.DataFrame(prices, columns=["timestamp", "close"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df["open"] = df["close"].shift(1)
+        df["high"] = df["close"]
+        df["low"] = df["close"]
+        df = df.dropna().tail(limit)
 
-        df['open'] = df['open'].astype(float)
-        df['high'] = df['high'].astype(float)
-        df['low'] = df['low'].astype(float)
-        df['close'] = df['close'].astype(float)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-
-        return df[['timestamp', 'open', 'high', 'low', 'close']]
+        return df[["timestamp", "open", "high", "low", "close"]]
 
     except Exception as e:
-        print("Error fetching OHLCV:", str(e))
+        print("Coingecko OHLCV fetch error:", str(e))
         return None
