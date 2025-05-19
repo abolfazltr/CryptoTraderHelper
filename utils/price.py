@@ -11,12 +11,12 @@ def get_ohlcv():
             return None
 
         data = response.json()
-        eth_price = data.get("ETH", {}).get("minPrice", None)
-        if eth_price is None:
-            print("ETH price not found in GMX data.")
+        weth_price = data.get("WETH", {}).get("minPrice", None)
+        if weth_price is None:
+            print("WETH price not found in GMX data.")
             return None
 
-        price = int(eth_price) / 1e30  # چون GMX قیمت رو به 30 رقم اعشار می‌ده
+        price = int(weth_price) / 1e30  # GMX قیمت رو با ۳۰ رقم اعشار می‌ده
 
         now = datetime.utcnow()
         df = pd.DataFrame([{
