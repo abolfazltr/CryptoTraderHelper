@@ -1,25 +1,15 @@
-import pandas as pd
-import pandas_ta as ta
+from utils.indicators import supertrend
 
-def generate_signal(prices):
-    try:
-        df = pd.DataFrame(prices)  # باید شامل لیستی از کندل‌ها باشه
+def generate_signal(df):
+    """
+    بر اساس SuperTrend بررسی می‌کنه که سیگنال خرید یا فروش هست یا نه.
+    """
+    df = supertrend(df, period=10, multiplier=3)
 
-        df['EMA20'] = ta.ema(df['close'], length=20)
-        df['EMA50'] = ta.ema(df['close'], length=50)
-        df['RSI'] = ta.rsi(df['close'], length=14)
-
-        df.dropna(inplace=True)  # حذف ردیف‌هایی که هنوز محاسبه نشده‌اند (NaN)
-
-        latest = df.iloc[-1]
-
-        if latest['EMA20'] > latest['EMA50'] and latest['RSI'] < 70:
-            return "long"
-        elif latest['EMA20'] < latest['EMA50'] and latest['RSI'] > 30:
-            return "short"
-        else:
-            return None
-
-    except Exception as e:
-        print("خطا در تحلیل استراتژی:", str(e))
+    # بررسی آخرین مقدار ستون supertrend
+    if df['supertrend'].iloc[-1] == 'LONG':
+        return 'long'
+    elif df['supertrend'].iloc[-1] == 'SHORT':
+        return 'short'
+    else:
         return None

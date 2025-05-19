@@ -1,23 +1,26 @@
 import time
+from utils.price import get_ohlcv
+from strategy import generate_signal
+from gmx import open_position
 
-def main():
-    print("ربات روشن شد")
+print("ربات تریدر با موفقیت اجرا شد...")
 
+while True:
     try:
-        while True:
-            print("وارد حلقه شدیم")
-            with open("log.txt", "a", encoding="utf-8") as f:
-                f.write("وارد حلقه شدیم\n")
-            time.sleep(10)
-    except Exception as e:
-        print("خطا:", str(e))
-        with open("log.txt", "a", encoding="utf-8") as f:
-            f.write(f"خطا: {str(e)}\n")
+        # گرفتن دیتای کندل ۵ دقیقه‌ای اتریوم
+        df = get_ohlcv(symbol="ETHUSDT", interval="5m")
 
-if __name__ == "__main__":
-    try:
-        main()
+        # تولید سیگنال از روی SuperTrend
+        signal = generate_signal(df)
+
+        # اگر سیگنال داشت، پوزیشن باز کن
+        if signal:
+            print(f"سیگنال دریافت شد: {signal}")
+            open_position(signal)
+        else:
+            print("فعلاً سیگنالی نیست.")
+
     except Exception as e:
-        print("خطای بیرونی:", str(e))
-        with open("log.txt", "a", encoding="utf-8") as f:
-            f.write(f"خطای بیرونی: {str(e)}\n")
+        print("خطا در اجرای ربات:", e)
+
+    time.sleep(300)  # صبر ۵ دقیقه‌ای
