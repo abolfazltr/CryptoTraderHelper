@@ -1,16 +1,16 @@
 import time
 from utils.price import get_ohlcv
 from utils.strategy import generate_signal
-from gmx import open_position
+from utils.gmx import open_position
 
 print("ربات تریدر با موفقیت اجرا شد...")
 
 while True:
     try:
-        # گرفتن دیتای کندل ۵ دقیقه‌ای اتریوم از Binance
+        # گرفتن کندل‌های ۵ دقیقه‌ای اتریوم از Binance
         df = get_ohlcv(symbol="ETHUSDT", interval="5m")
 
-        # بررسی سیگنال با استفاده از SuperTrend
+        # بررسی سیگنال با استراتژی SuperTrend
         signal = generate_signal(df)
 
         # اگر سیگنال داشت، پوزیشن باز کن
@@ -23,5 +23,5 @@ while True:
     except Exception as e:
         print("خطا در اجرای ربات:", e)
 
-    # صبر ۵ دقیقه‌ای
+    # صبر ۵ دقیقه‌ای بین بررسی‌ها
     time.sleep(300)
