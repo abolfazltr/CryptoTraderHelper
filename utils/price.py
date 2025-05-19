@@ -19,8 +19,3 @@ def get_ohlcv(symbol="ETHUSDT", interval="5m", limit=100):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
     return df[['timestamp', 'open', 'high', 'low', 'close']]
-
-def get_current_price(symbol="ETHUSDT"):
-    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-    response = requests.get(url).json()
-    return float(response["price"])

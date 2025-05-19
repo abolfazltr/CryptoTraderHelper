@@ -1,6 +1,6 @@
 import json
 from web3 import Web3
-from utils.price import get_current_price
+from utils.price_fetcher import get_current_price
 from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
 
 # بارگذاری ABIها
@@ -13,7 +13,7 @@ with open("abi/Vault.json") as f:
 # آدرس قراردادها
 POSITION_ROUTER = "0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"
 VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
-WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"  # توکن معامله
+WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
 
 # اتصال به شبکه
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
@@ -21,7 +21,6 @@ account = w3.eth.account.from_key(PRIVATE_KEY)
 
 position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
 vault = w3.eth.contract(address=VAULT, abi=vault_abi)
-
 
 def open_position(signal, leverage, amount_usd, token):
     entry_price = get_current_price(token)
@@ -56,7 +55,7 @@ def open_position(signal, leverage, amount_usd, token):
             "from": ACCOUNT_ADDRESS,
             "value": execution_fee,
             "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-            "gas": 800000,
+            "gas": 700000,
             "gasPrice": w3.eth.gas_price
         })
 
@@ -73,7 +72,6 @@ def open_position(signal, leverage, amount_usd, token):
     except Exception as e:
         print("خطا در باز کردن پوزیشن:", str(e))
 
-
 def set_tp_sl(signal, entry_price, size_delta, token):
     is_long = signal == "long"
     tp_price = entry_price * (1 + 0.03) if is_long else entry_price * (1 - 0.03)
@@ -85,26 +83,25 @@ def set_tp_sl(signal, entry_price, size_delta, token):
     for price, label in [(acceptable_tp, "TP"), (acceptable_sl, "SL")]:
         try:
             tx = position_router.functions.createDecreasePosition(
-                [token],                # path
-                token,                 # indexToken
-                0,                     # collateralDelta = 0
-                size_delta,            # sizeDelta
+                [token],
+                token,
+                0,
+                size_delta,
                 is_long,
-                ACCOUNT_ADDRESS,
+                account.address,
                 price,
-                label == "TP"          # TP: triggerAbove=True, SL: False
+                0,
+                False
             ).build_transaction({
                 "from": ACCOUNT_ADDRESS,
                 "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-                "gas": 800000,
+                "gas": 700000,
                 "gasPrice": w3.eth.gas_price
             })
 
             signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
             tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-
-            print(f"{label} ثبت شد در قیمت: {price / 1e30:.4f}")
-            print("TX:", w3.to_hex(tx_hash))
+            print(f"{label} ثبت شد. TX Hash:", w3.to_hex(tx_hash))
 
         except Exception as e:
-            print(f"خطا در ثبت {label}:", str(e))
+            print(f"خطا در ست کردن {label}:", str(e))
