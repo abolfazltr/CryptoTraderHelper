@@ -1,6 +1,5 @@
 from web3 import Web3
 import json
-from utils.price import get_current_price
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
 
 # Load ABIs
