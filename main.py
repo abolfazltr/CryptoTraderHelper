@@ -13,13 +13,15 @@ def run_bot():
             price = get_current_price()
 
             if price is None:
-                print("⚠️ دریافت قیمت ناموفق بود. تلاش مجدد در ۵ دقیقه...\n", flush=True)
+                print("⚠️ دریافت قیمت ناموفق بود. تلاش مجدد در ۵ دقیقه...", flush=True)
             else:
                 print(f"✅ قیمت فعلی ETH از GMX: {price} دلار", flush=True)
 
                 # ساخت دیتافریم برای تحلیل
                 df = pd.DataFrame({
-                    'close': [price] * 30  # فرض می‌کنیم ۳۰ کندل داریم با همین قیمت
+                    'close': [price] * 30,
+                    'high': [price] * 30,
+                    'low': [price] * 30
                 })
 
                 signal = generate_signal(df)
@@ -34,7 +36,7 @@ def run_bot():
         except Exception as e:
             print(f"🚨 خطا در اجرای ربات: {e}", flush=True)
 
-        print("⏱️ منتظر ۵ دقیقه بعدی...\n", flush=True)
+        print("🕒 منتظر ۵ دقیقه بعدی...\n", flush=True)
         time.sleep(300)
 
 if __name__ == "__main__":
