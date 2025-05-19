@@ -31,3 +31,8 @@ def get_ohlcv():
     except Exception as e:
         print("GMX Vault price fetch error:", str(e))
         return None
+        def get_current_price():
+            df = get_ohlcv()
+            if df is not None and not df.empty:
+                return df["close"].iloc[-1]
+            return None
