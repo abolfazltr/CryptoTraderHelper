@@ -1,83 +1,110 @@
 import json
+import time
 from web3 import Web3
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
 from utils.price import get_current_price
 
-# بارگذاری ABIها
-with open("abi/PositionRouter.json") as f:
-    position_router_abi = json.load(f)
-with open("abi/Vault.json") as f:
-    vault_abi = json.load(f)
+# اتصال به آربیتروم
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
+account = w3.eth.account.from_key(PRIVATE_KEY)
 
-# آدرس‌ها
-POSITION_ROUTER = "0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"
-VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+# آدرس‌ها و ABIها
+POSITION_ROUTER = "0x27c65d220046a8f2b3b0a3942d3f226e708c4b0f"
 WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
 
-# اتصال به وب۳
-web3 = Web3(Web3.HTTPProvider(RPC_URL))
-account = web3.eth.account.from_key(PRIVATE_KEY)
+with open("abi/PositionRouter.json") as f:
+    router_abi = json.load(f)
 
-position_router = web3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
-vault = web3.eth.contract(address=VAULT, abi=vault_abi)
+router = w3.eth.contract(address=POSITION_ROUTER, abi=router_abi)
 
 def open_position(signal):
-    print(f"دریافت سیگنال: {signal}")
-    is_long = signal.lower() == "buy"
+    try:
+        print(f"سیگنال دریافتی: {signal}")
+        is_long = signal == "buy"
+        eth_price = get_current_price()
+        usd_amount = 20
+        leverage = 5
+        eth_amount = usd_amount / eth_price
+        eth_in_wei = w3.to_wei(eth_amount, 'ether')
+        execution_fee = w3.to_wei(0.0003, 'ether')
+        entry_price = eth_price
+        tp_price = entry_price * 1.06 if is_long else entry_price * 0.94
+        sl_price = entry_price * 0.98 if is_long else entry_price * 1.02
 
-    # دریافت قیمت لحظه‌ای
-    price = get_current_price("ethereum")
-    print(f"قیمت فعلی ETH: {price}")
+        # مرحله ۱: سفارش ورود به پوزیشن
+        print("ارسال سفارش ورود به پوزیشن...")
+        tx = router.functions.createIncreaseOrder(
+            WETH,
+            WETH,
+            eth_in_wei,
+            0,
+            int(entry_price * leverage),
+            is_long,
+            execution_fee,
+            b'\x00' * 32,
+            "0x0000000000000000000000000000000000000000"
+        ).build_transaction({
+            'from': ACCOUNT_ADDRESS,
+            'value': execution_fee,
+            'gas': 800000,
+            'gasPrice': w3.to_wei('2', 'gwei'),
+            'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS)
+        })
 
-    # محاسبه مقادیر
-    amount_in_eth = 0.006  # حدود ۲۰ دلار
-    amount_in_wei = web3.to_wei(amount_in_eth, 'ether')
-    leverage = 5
-    sl_percent = 0.02  # حد ضرر ۲٪
-    tp_percent = 0.06  # حد سود ۶٪
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        print(f"پوزیشن باز شد! TX: {tx_hash.hex()}")
 
-    # محاسبه حد ضرر و حد سود بر اساس سیگنال
-    if is_long:
-        sl_price = int(price * (1 - sl_percent))
-        tp_price = int(price * (1 + tp_percent))
-        acceptable_price = int(price * 1.01)
-    else:
-        sl_price = int(price * (1 + sl_percent))
-        tp_price = int(price * (1 - tp_percent))
-        acceptable_price = int(price * 0.99)
+        # کمی صبر می‌کنیم تا سفارش ورود ثبت بشه
+        time.sleep(10)
 
-    execution_fee = web3.to_wei(0.0003, 'ether')
+        # سفارش TP
+        print("ثبت سفارش حد سود...")
+        tp_tx = router.functions.createDecreaseOrder(
+            WETH,
+            WETH,
+            eth_in_wei,
+            int(tp_price),
+            is_long,
+            ACCOUNT_ADDRESS,
+            execution_fee,
+            b'\x00' * 32,
+            "0x0000000000000000000000000000000000000000"
+        ).build_transaction({
+            'from': ACCOUNT_ADDRESS,
+            'value': execution_fee,
+            'gas': 800000,
+            'gasPrice': w3.to_wei('2', 'gwei'),
+            'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS)
+        })
 
-    # آرگومان‌های تابع ایجاد پوزیشن
-    path = [WETH]
-    index_token = WETH
-    min_out = 0
-    size_delta = leverage * amount_in_wei
-    referral_code = b'\x00' * 32
-    callback_target = "0x0000000000000000000000000000000000000000"
+        signed_tp = w3.eth.account.sign_transaction(tp_tx, PRIVATE_KEY)
+        tp_hash = w3.eth.send_raw_transaction(signed_tp.rawTransaction)
+        print(f"سفارش TP ثبت شد! TX: {tp_hash.hex()}")
 
-    # ساخت تراکنش
-    tx = position_router.functions.createIncreasePosition(
-        path,
-        index_token,
-        amount_in_wei,
-        min_out,
-        size_delta,
-        is_long,
-        ACCOUNT_ADDRESS,
-        acceptable_price,
-        execution_fee,
-        referral_code,
-        callback_target
-    ).build_transaction({
-        'from': ACCOUNT_ADDRESS,
-        'value': execution_fee,
-        'nonce': web3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        'gas': 800000,
-        'gasPrice': web3.to_wei('5', 'gwei'),
-    })
+        # سفارش SL
+        print("ثبت سفارش حد ضرر...")
+        sl_tx = router.functions.createDecreaseOrder(
+            WETH,
+            WETH,
+            eth_in_wei,
+            int(sl_price),
+            is_long,
+            ACCOUNT_ADDRESS,
+            execution_fee,
+            b'\x00' * 32,
+            "0x0000000000000000000000000000000000000000"
+        ).build_transaction({
+            'from': ACCOUNT_ADDRESS,
+            'value': execution_fee,
+            'gas': 800000,
+            'gasPrice': w3.to_wei('2', 'gwei'),
+            'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS)
+        })
 
-    # امضا و ارسال تراکنش
-    signed_tx = web3.eth.account.sign_transaction(tx, PRIVATE_KEY)
-    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print(f"پوزیشن {'لانگ' if is_long else 'شورت'} باز شد. هش تراکنش: {web3.to_hex(tx_hash)}")
+        signed_sl = w3.eth.account.sign_transaction(sl_tx, PRIVATE_KEY)
+        sl_hash = w3.eth.send_raw_transaction(signed_sl.rawTransaction)
+        print(f"سفارش SL ثبت شد! TX: {sl_hash.hex()}")
+
+    except Exception as e:
+        print(f"خطا در open_position GMX V2: {e}")
