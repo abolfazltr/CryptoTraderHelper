@@ -9,8 +9,8 @@ w3 = Web3(Web3.HTTPProvider(RPC_URL))
 account = w3.eth.account.from_key(PRIVATE_KEY)
 
 # آدرس‌ها و ABIها
-POSITION_ROUTER = "0x27c65d220046a8f2b3b0a3942d3f226e708c4b0f"
-WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
+POSITION_ROUTER = Web3.to_checksum_address("0x27c65d220046a8f2b3b0a3942d3f226e708c4b0f")
+WETH = Web3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")
 
 with open("abi/PositionRouter.json") as f:
     router_abi = json.load(f)
