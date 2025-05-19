@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 
-def get_ohlcv(symbol="NOTUSDT", interval="5m", limit=100):
+def get_ohlcv(symbol="ETHUSDT", interval="5m", limit=100):
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     response = requests.get(url)
     data = response.json()
@@ -19,7 +19,8 @@ def get_ohlcv(symbol="NOTUSDT", interval="5m", limit=100):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
     return df[['timestamp', 'open', 'high', 'low', 'close']]
-    def get_current_price(symbol="ETHUSDT"):
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-        response = requests.get(url).json()
-        return float(response["price"])
+
+def get_current_price(symbol="ETHUSDT"):
+    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+    response = requests.get(url).json()
+    return float(response["price"])
