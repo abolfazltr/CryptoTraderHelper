@@ -1,22 +1,21 @@
-import requests
+from web3 import Web3
+from config.settings import RPC_URL
 import pandas as pd
 from datetime import datetime
 
+VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
+
+with open("abi/Vault.json") as f:
+    vault_abi = f.read()
+
 def get_ohlcv():
     try:
-        url = "https://gmx-server-mainnet-arb.gmxinfra.io/prices"
-        response = requests.get(url, timeout=10)
-        if response.status_code != 200:
-            print("GMX price fetch error:", response.text)
-            return None
+        w3 = Web3(Web3.HTTPProvider(RPC_URL))
+        vault = w3.eth.contract(address=VAULT, abi=vault_abi)
 
-        data = response.json()
-        weth_price = data.get("WETH", {}).get("minPrice", {}).get("value", None)
-        if weth_price is None:
-            print("WETH price not found in GMX data.")
-            return None
-
-        price = int(weth_price) / 1e30
+        price_raw = vault.functions.getMinPrice(WETH).call()
+        price = price_raw / 1e30
 
         now = datetime.utcnow()
         df = pd.DataFrame([{
@@ -30,5 +29,5 @@ def get_ohlcv():
         return df
 
     except Exception as e:
-        print("Error fetching price from GMX:", str(e))
+        print("GMX Vault price fetch error:", str(e))
         return None
