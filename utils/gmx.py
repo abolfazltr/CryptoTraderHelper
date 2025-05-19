@@ -1,7 +1,7 @@
 import json
 from web3 import Web3
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
-from utils.price_fetcher import get_current_price
+from utils.price import get_current_price
 
 # بارگذاری ABIها
 with open("abi/PositionRouter.json") as f:
