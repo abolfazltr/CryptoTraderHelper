@@ -4,7 +4,7 @@ from datetime import datetime
 
 def get_ohlcv():
     try:
-        url = "https://arbitrum-api.gmxinfra.io/prices"
+        url = "https://gmx-server-mainnet-arb.gmxinfra.io/prices"
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
             print("GMX price fetch error:", response.text)
