@@ -2,12 +2,14 @@ from web3 import Web3
 from config.settings import RPC_URL
 import pandas as pd
 from datetime import datetime
+import json  # برای خواندن ABI به صورت json
 
 VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
 WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
 
+# بارگذاری ABI به‌صورت JSON (اصلاح شده)
 with open("abi/Vault.json") as f:
-    vault_abi = f.read()
+    vault_abi = json.load(f)
 
 def get_ohlcv():
     try:
