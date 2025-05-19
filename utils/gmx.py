@@ -1,103 +1,83 @@
-from web3 import Web3
 import json
+from web3 import Web3
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
+from utils.price_fetcher import get_current_price
 
-# Load ABIs
+# بارگذاری ABIها
 with open("abi/PositionRouter.json") as f:
     position_router_abi = json.load(f)
-
 with open("abi/Vault.json") as f:
     vault_abi = json.load(f)
 
-# Addresses
+# آدرس‌ها
 POSITION_ROUTER = "0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"
 VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
 WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
 
-def wrap_eth_to_weth(web3, amount_eth):
-    weth_contract = web3.eth.contract(address=WETH, abi=[{
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    }])
-    tx = weth_contract.functions.deposit().build_transaction({
-        'from': ACCOUNT_ADDRESS,
-        'value': web3.to_wei(amount_eth, 'ether'),
-        'nonce': web3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        'gas': 100000,
-        'gasPrice': web3.to_wei('2', 'gwei')
-    })
-    signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print(f"[✓] WETH wrapped | TX: {web3.to_hex(tx_hash)}")
+# اتصال به وب۳
+web3 = Web3(Web3.HTTPProvider(RPC_URL))
+account = web3.eth.account.from_key(PRIVATE_KEY)
 
-def approve_weth_for_gmx(web3):
-    erc20_abi = [{
-        "inputs": [
-            {"name": "_spender", "type": "address"},
-            {"name": "_amount", "type": "uint256"}
-        ],
-        "name": "approve",
-        "outputs": [{"name": "", "type": "bool"}],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }]
-    weth = web3.eth.contract(address=WETH, abi=erc20_abi)
-    amount = web3.to_wei(1000, 'ether')
-    tx = weth.functions.approve(POSITION_ROUTER, amount).build_transaction({
-        'from': ACCOUNT_ADDRESS,
-        'nonce': web3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        'gas': 100000,
-        'gasPrice': web3.to_wei('2', 'gwei')
-    })
-    signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print(f"[✓] WETH approved | TX: {web3.to_hex(tx_hash)}")
+position_router = web3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
+vault = web3.eth.contract(address=VAULT, abi=vault_abi)
 
 def open_position(signal):
-    web3 = Web3(Web3.HTTPProvider(RPC_URL))
-    account = web3.eth.account.from_key(PRIVATE_KEY)
-    position_router = web3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
+    print(f"دریافت سیگنال: {signal}")
+    is_long = signal.lower() == "buy"
 
-    # Step 1: wrap ETH → WETH
-    wrap_eth_to_weth(web3, 0.01)
+    # دریافت قیمت لحظه‌ای
+    price = get_current_price("ethereum")
+    print(f"قیمت فعلی ETH: {price}")
 
-    # Step 2: approve WETH
-    approve_weth_for_gmx(web3)
-
-    # Step 3: open position
-    is_long = True if signal == "long" else False
-    amount_usd = 20
+    # محاسبه مقادیر
+    amount_in_eth = 0.006  # حدود ۲۰ دلار
+    amount_in_wei = web3.to_wei(amount_in_eth, 'ether')
     leverage = 5
-    execution_fee = web3.to_wei("0.0005", "ether")
+    sl_percent = 0.02  # حد ضرر ۲٪
+    tp_percent = 0.06  # حد سود ۶٪
 
-    price = get_current_price("ETHUSDT")
-    acceptable_price = int(price * (1.005 if is_long else 0.995) * 1e30)
-    size_delta = int(amount_usd * leverage * 1e30)
+    # محاسبه حد ضرر و حد سود بر اساس سیگنال
+    if is_long:
+        sl_price = int(price * (1 - sl_percent))
+        tp_price = int(price * (1 + tp_percent))
+        acceptable_price = int(price * 1.01)
+    else:
+        sl_price = int(price * (1 + sl_percent))
+        tp_price = int(price * (1 - tp_percent))
+        acceptable_price = int(price * 0.99)
 
-    params = [
-        [WETH],              # _path
-        WETH,                # _indexToken
-        int(amount_usd * 1e6),  # _amountIn (بر حسب USDC معادل)
-        0,                   # _minOut
-        size_delta,          # _sizeDelta
-        is_long,             # _isLong
-        acceptable_price,    # _acceptablePrice
-        execution_fee        # _executionFee
-    ]
+    execution_fee = web3.to_wei(0.0003, 'ether')
 
+    # آرگومان‌های تابع ایجاد پوزیشن
+    path = [WETH]
+    index_token = WETH
+    min_out = 0
+    size_delta = leverage * amount_in_wei
+    referral_code = b'\x00' * 32
+    callback_target = "0x0000000000000000000000000000000000000000"
+
+    # ساخت تراکنش
     tx = position_router.functions.createIncreasePosition(
-        *params
+        path,
+        index_token,
+        amount_in_wei,
+        min_out,
+        size_delta,
+        is_long,
+        ACCOUNT_ADDRESS,
+        acceptable_price,
+        execution_fee,
+        referral_code,
+        callback_target
     ).build_transaction({
         'from': ACCOUNT_ADDRESS,
+        'value': execution_fee,
         'nonce': web3.eth.get_transaction_count(ACCOUNT_ADDRESS),
         'gas': 800000,
-        'gasPrice': web3.to_wei('2', 'gwei'),
-        'value': execution_fee
+        'gasPrice': web3.to_wei('5', 'gwei'),
     })
 
-    signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+    # امضا و ارسال تراکنش
+    signed_tx = web3.eth.account.sign_transaction(tx, PRIVATE_KEY)
     tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print(f"[✓] Position opened! TX: {web3.to_hex(tx_hash)}")
+    print(f"پوزیشن {'لانگ' if is_long else 'شورت'} باز شد. هش تراکنش: {web3.to_hex(tx_hash)}")
