@@ -1,7 +1,7 @@
 import time
 from utils.price import get_ohlcv
 from utils.strategy import generate_signal
-from utils.gmx_v2 import open_position  # اتصال به نسخه واقعی V2
+from utils.gmx_v2 import open_position  # اتصال به GMX V2 واقعی
 
 def run_bot():
     print("ربات تریدر GMX V2 استارت شد...\n")
@@ -19,7 +19,7 @@ def run_bot():
                 print(f"در حال باز کردن پوزیشن: {signal}")
                 open_position(signal)
             else:
-                print("فعلاً سیگنالی برای ورود وجود ندارد.")
+                print("هیچ سیگنالی برای ورود وجود ندارد.")
 
         except Exception as e:
             print(f"خطا در اجرای ربات: {e}")
