@@ -11,12 +11,12 @@ def get_ohlcv():
             return None
 
         data = response.json()
-        weth_price = data.get("WETH", {}).get("minPrice", None)
+        weth_price = data.get("WETH", {}).get("minPrice", {}).get("value", None)
         if weth_price is None:
             print("WETH price not found in GMX data.")
             return None
 
-        price = int(weth_price) / 1e30  # GMX قیمت رو با ۳۰ رقم اعشار می‌ده
+        price = int(weth_price) / 1e30
 
         now = datetime.utcnow()
         df = pd.DataFrame([{
