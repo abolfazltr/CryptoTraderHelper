@@ -1,47 +1,51 @@
 import pandas as pd
-from utils.indicators import supertrend, ema
+import numpy as np
 
-def generate_signal(df):
-    if df is None or df.empty:
-        print("⚠️  No data received for signal generation.")
-        return None
+def calculate_supertrend(df, period=10, multiplier=3):
+    hl2 = (df['high'] + df['low']) / 2
+    atr = (df['high'] - df['low']).rolling(window=period).mean()
 
-    # محاسبه اندیکاتورها
-    df['ema_short'] = ema(df['close'], period=9)
-    df['ema_long'] = ema(df['close'], period=21)
-    df = supertrend(df, period=10, multiplier=3)
+    upperband = hl2 + (multiplier * atr)
+    lowerband = hl2 - (multiplier * atr)
 
-    # چک‌کردن اینکه ستون‌ها ساخته شده‌اند
-    if 'supertrend' not in df.columns or df['supertrend'].empty:
-        print("⚠️  Supertrend column missing or empty.")
-        return None
+    supertrend = [True]
 
-    last_row = df.iloc[-1]
-    prev_row = df.iloc[-2]
+    for i in range(1, len(df)):
+        if df['close'][i] > upperband[i - 1]:
+            supertrend.append(True)
+        elif df['close'][i] < lowerband[i - 1]:
+            supertrend.append(False)
+        else:
+            supertrend.append(supertrend[i - 1])
+            if supertrend[i]:
+                lowerband[i] = max(lowerband[i], lowerband[i - 1])
+            else:
+                upperband[i] = min(upperband[i], upperband[i - 1])
 
-    print(f"آخرین وضعیت:")
-    print(f"supertrend: {last_row['supertrend']}")
-    print(f"EMA short: {last_row['ema_short']} | EMA long: {last_row['ema_long']}")
-    print(f"EMA cross condition: {prev_row['ema_short']} → {prev_row['ema_long']}")
+    df['supertrend'] = ['buy' if x else 'sell' for x in supertrend]
+    return df
 
-    # شرایط پوزیشن لانگ
-    if (
-        last_row['supertrend'] == 'LONG' and
-        last_row['ema_short'] > last_row['ema_long'] and
-        prev_row['ema_short'] <= prev_row['ema_long']
-    ):
-        print("✅ سیگنال BUY صادر شد.")
-        return 'buy'
+def calculate_ema_cross(df, short_period=9, long_period=21):
+    df['ema_short'] = df['close'].ewm(span=short_period, adjust=False).mean()
+    df['ema_long'] = df['close'].ewm(span=long_period, adjust=False).mean()
+    df['ema_cross'] = df['ema_short'] > df['ema_long']
+    return df
 
-    # شرایط پوزیشن شورت
-    elif (
-        last_row['supertrend'] == 'SHORT' and
-        last_row['ema_short'] < last_row['ema_long'] and
-        prev_row['ema_short'] >= prev_row['ema_long']
-    ):
-        print("✅ سیگنال SELL صادر شد.")
-        return 'sell'
+def get_signal(df, return_debug=False):
+    df = calculate_supertrend(df, period=10, multiplier=3)
+    df = calculate_ema_cross(df)
 
-    # اگر هیچ‌کدام نبود:
-    print("❌ هیچ شرایط سیگنالی برقرار نیست.")
-    return None
+    supertrend_signal = df['supertrend'].iloc[-1]
+    ema_short = df['ema_short'].iloc[-1]
+    ema_long = df['ema_long'].iloc[-1]
+    ema_signal = df['ema_cross'].iloc[-1]
+
+    signal = None
+    if supertrend_signal == 'buy' and ema_signal:
+        signal = 'buy'
+    elif supertrend_signal == 'sell' and not ema_signal:
+        signal = 'sell'
+
+    if return_debug:
+        return signal, supertrend_signal, ema_short, ema_long
+    return signal
