@@ -1,29 +1,30 @@
 import time
 from utils.price import get_price_data
-from utils.strategy import get_signal
 from utils.gmx_v2 import open_position
+from utils.strategy import generate_signal
 
-symbols = ["ETHUSD", "LINKUSDT"]
+symbols = ["ETHUSDT", "LINKUSDT"]
 
 while True:
     for symbol in symbols:
-        print(f"\n⏳ بررسی {symbol}...", flush=True)
-        price, df = get_price_data(symbol)
+        print(f"\nبررسی {symbol} ...")
 
-        if not price or df is None or df.empty:
-            print(f"⚠️ قیمت برای {symbol} دریافت نشد.", flush=True)
-            continue
+        try:
+            df = get_price_data(symbol)
+            if df is None or df.empty:
+                print(f"⛔ داده‌ای برای {symbol} دریافت نشد.")
+                continue
 
-        print(f"✅ {symbol} از GMX: {price}", flush=True)
-        print(f"✅ {symbol} از CoinGecko: {round(df['close'].iloc[-1], 2)}", flush=True)
-        print(f"✅ قیمت نهایی {symbol}: {price}", flush=True)
+            signal = generate_signal(symbol, df)
 
-        signal = get_signal(df)
+            if signal == "buy" or signal == "sell":
+                print(f"✅ سیگنال معتبر برای {symbol}: {signal.upper()}")
+                open_position(symbol, signal)
+            else:
+                print(f"❌ هیچ سیگنالی برای {symbol} نیست. (No Signal)")
 
-        if signal:
-            print(f"📢 سیگنال {symbol}: {signal}", flush=True)
-            open_position(symbol, signal)
-        else:
-            print(f"⛔ هیچ سیگنالی برای {symbol} نیست. (No Signal)", flush=True)
+        except Exception as e:
+            print(f"⚠️ خطا در بررسی {symbol}: {str(e)}")
 
+    print("\n⏳ منتظر ۵ دقیقه بعدی ...")
     time.sleep(300)
