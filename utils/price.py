@@ -1,51 +1,44 @@
 import requests
 
-def get_price_data(symbol):
+# گرفتن قیمت از GMX
+def get_price_from_gmx(symbol):
+    try:
+        url = f"https://api.gmx.io/prices/{symbol}"
+        response = requests.get(url)
+        data = response.json()
+        return round(float(data['price']) / 1e30, 2)
+    except:
+        return None
+
+# گرفتن قیمت از CoinGecko
+def get_price_from_coingecko(id):
+    try:
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd"
+        response = requests.get(url)
+        data = response.json()
+        return float(data[id]["usd"])
+    except:
+        return None
+
+# برگرداندن لیست ۲۰تایی قیمت واقعی برای تحلیل
+def get_last_prices(symbol):
+    # تطبیق برای توکن‌های GMX
+    gmx_symbol = ""
     if symbol == "ETHUSDT":
-        gmx_price = get_price_from_gmx("ETH")
-        coingecko_price = get_price_from_coingecko("ethereum")
+        gmx_symbol = "ETH"
     elif symbol == "LINKUSDT":
-        gmx_price = get_price_from_gmx("LINK")
-        coingecko_price = get_price_from_coingecko("chainlink")
+        gmx_symbol = "LINK"
     else:
-        return None
+        return []
 
-    if gmx_price is None or coingecko_price is None:
-        return None
+    price = get_price_from_gmx(gmx_symbol)
+    if price is None:
+        if gmx_symbol == "ETH":
+            price = get_price_from_coingecko("ethereum")
+        elif gmx_symbol == "LINK":
+            price = get_price_from_coingecko("chainlink")
 
-    average_price = round((gmx_price + coingecko_price) / 2, 2)
-    print(f"✅ قیمت نهایی {symbol}: {average_price}")
-    return generate_dummy_candles(average_price)
+    if price is None:
+        return []
 
-def get_price_from_gmx(token):
-    try:
-        url = f"https://api.gmx.io/prices/{token.upper()}"
-        response = requests.get(url)
-        data = response.json()
-        price = float(data["price"])
-        print(f"✅ {token} از GMX: {price}")
-        return price
-    except:
-        return None
-
-def get_price_from_coingecko(token_id):
-    try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={token_id}&vs_currencies=usd"
-        response = requests.get(url)
-        data = response.json()
-        price = float(data[token_id]["usd"])
-        print(f"✅ {token_id} از CoinGecko: {price}")
-        return price
-    except:
-        return None
-
-def generate_dummy_candles(price):
-    import pandas as pd
-    data = {
-        "open": [price * 0.99],
-        "high": [price * 1.01],
-        "low": [price * 0.98],
-        "close": [price],
-    }
-    df = pd.DataFrame(data)
-    return df
+    return [price for _ in range(20)]
