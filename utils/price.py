@@ -3,50 +3,68 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-# گرفتن قیمت از GMX
+# گرفتن قیمت از GMX V2
 def get_price_from_gmx(symbol):
     try:
-        url = f"https://api.gmx.io/prices/{symbol}"
-        response = requests.get(url)
+        url = "https://arbitrum-api.gmxinfra.io/prices/tokens"
+        response = requests.get(url, timeout=5)
+        if response.status_code != 200:
+            logging.warning(f"GMX قیمت نیامد. status: {response.status_code}")
+            return None
         data = response.json()
-        price = round(float(data['price']) / 1e30, 2)
-        logging.debug(f"قیمت GMX برای {symbol}: {price}")
-        return price
+        symbol = symbol.upper()
+        if symbol in data and "priceUsd" in data[symbol]:
+            price = float(data[symbol]["priceUsd"])
+            logging.debug(f"قیمت GMX برای {symbol}: {price}")
+            return round(price, 4)
+        else:
+            logging.warning(f"توکن {symbol} در پاسخ GMX نبود.")
+            return None
     except Exception as e:
-        logging.warning(f"خطا در دریافت قیمت از GMX برای {symbol}: {e}")
+        logging.warning(f"خطا در GMX برای {symbol}: {e}")
         return None
 
 # گرفتن قیمت از CoinGecko
 def get_price_from_coingecko(id):
     try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd"
-        response = requests.get(url)
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd&precision=6"
+        response = requests.get(url, timeout=5)
+        if response.status_code != 200:
+            logging.warning(f"CoinGecko قیمت نیامد. status: {response.status_code}")
+            return None
         data = response.json()
-        price = float(data[id]["usd"])
-        logging.debug(f"قیمت CoinGecko برای {id}: {price}")
-        return price
+        if id in data:
+            price = float(data[id]["usd"])
+            logging.debug(f"قیمت CoinGecko برای {id}: {price}")
+            return round(price, 4)
+        else:
+            logging.warning(f"توکن {id} در پاسخ CoinGecko نبود.")
+            return None
     except Exception as e:
-        logging.warning(f"خطا در دریافت قیمت از CoinGecko برای {id}: {e}")
+        logging.warning(f"خطا در CoinGecko برای {id}: {e}")
         return None
 
-# برگرداندن لیست ۲۰تایی قیمت واقعی برای تحلیل
+# گرفتن لیست قیمت برای تحلیل
 def get_last_prices(symbol):
+    # تعریف شناسه‌ها
     gmx_symbol = ""
+    cg_id = ""
+
     if symbol == "ETHUSDT":
         gmx_symbol = "ETH"
+        cg_id = "ethereum"
     elif symbol == "LINKUSDT":
         gmx_symbol = "LINK"
+        cg_id = "chainlink"
     else:
-        logging.error(f"نماد نامعتبر برای تحلیل: {symbol}")
+        logging.error(f"نماد نامعتبر: {symbol}")
         return []
 
+    # گرفتن قیمت از دو منبع
     price = get_price_from_gmx(gmx_symbol)
     if price is None:
-        logging.info(f"قیمت از GMX برای {gmx_symbol} نیامد. تلاش برای CoinGecko...")
-        if gmx_symbol == "ETH":
-            price = get_price_from_coingecko("ethereum")
-        elif gmx_symbol == "LINK":
-            price = get_price_from_coingecko("chainlink")
+        logging.info(f"قیمت GMX برای {gmx_symbol} یافت نشد، تلاش برای CoinGecko...")
+        price = get_price_from_coingecko(cg_id)
 
     if price is None:
         logging.error(f"هیچ قیمتی یافت نشد برای {symbol}")
