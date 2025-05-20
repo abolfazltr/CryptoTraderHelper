@@ -1,14 +1,23 @@
+import logging
 from utils.indicators import calculate_supertrend, calculate_ema
 from utils.price import get_last_prices
+
+logging.basicConfig(level=logging.INFO)
 
 def get_signal(symbol, current_price):
     try:
         prices = get_last_prices(symbol)
-        print(f"[DEBUG] قیمت‌های دریافت‌شده برای {symbol}: {prices}")
+        logging.debug(f"[DEBUG] قیمت‌های دریافت‌شده برای {symbol}: {prices}")
 
         if len(prices) < 20:
-            print(f"[ERROR] تعداد قیمت کافی نیست برای {symbol}")
-            return {"signal": None, "supertrend": "UNKNOWN", "ema_short": 0, "ema_long": 0, "ema_cross": False}
+            logging.warning(f"[ERROR] تعداد قیمت کافی نیست برای {symbol}")
+            return {
+                "signal": None,
+                "supertrend": "UNKNOWN",
+                "ema_short": 0,
+                "ema_long": 0,
+                "ema_cross": False
+            }
 
         ema_short = calculate_ema(prices, period=10)[-1]
         ema_long = calculate_ema(prices, period=20)[-1]
@@ -32,5 +41,11 @@ def get_signal(symbol, current_price):
         }
 
     except Exception as e:
-        print("[EXCEPTION]", e)
-        return {"signal": None, "supertrend": "ERROR", "ema_short": 0, "ema_long": 0, "ema_cross": False}
+        logging.error(f"[EXCEPTION] {symbol} → {e}")
+        return {
+            "signal": None,
+            "supertrend": "ERROR",
+            "ema_short": 0,
+            "ema_long": 0,
+            "ema_cross": False
+        }
