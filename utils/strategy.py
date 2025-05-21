@@ -6,26 +6,27 @@ EMA_LONG = 21
 SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3
 
-def fetch_ohlc_kucoin(symbol="eth", interval="5min"):
-    pair_map = {
-        "eth": "ETH-USDT",
-        "link": "LINK-USDT"
+def fetch_ohlc_coingecko(symbol):
+    coingecko_ids = {
+        "eth": "ethereum",
+        "link": "chainlink"
     }
 
-    pair = pair_map.get(symbol.lower())
-    if not pair:
+    token_id = coingecko_ids.get(symbol.lower())
+    if not token_id:
+        print("❌ توکن پشتیبانی نمی‌شود.")
         return None
 
-    url = f"https://api.kucoin.com/api/v1/market/candles?type={interval}&symbol={pair}"
-    res = requests.get(url)
-    if res.status_code != 200:
+    url = f"https://api.coingecko.com/api/v3/coins/{token_id}/ohlc?vs_currency=usd&days=1"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=10)
+
+    if response.status_code != 200:
+        print(f"❌ خطا در دریافت کندل {symbol.upper()}: {response.text}")
         return None
 
-    raw = res.json()["data"]
-    df = pd.DataFrame(raw)[[0,1,2,3,4,5]]
-    df.columns = ["timestamp", "open", "close", "high", "low", "volume"]
-    df = df[::-1]
-    df[["open", "close", "high", "low"]] = df[["open", "close", "high", "low"]].astype(float)
+    raw = response.json()
+    df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close"])
     return df
 
 def ema_signal(df):
@@ -58,9 +59,9 @@ def calculate_supertrend(df, period=SUPERTREND_PERIOD, multiplier=SUPERTREND_MUL
     return df
 
 def analyze_token(token):
-    df = fetch_ohlc_kucoin(token)
+    df = fetch_ohlc_coingecko(token)
     if df is None or df.empty:
-        print("❌ کندل‌داده‌ها برای تحلیل دریافت نشد.")
+        print("❌ کندل‌داده‌ها دریافت نشد.")
         return None
 
     df = calculate_supertrend(df)
