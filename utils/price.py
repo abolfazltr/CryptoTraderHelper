@@ -1,39 +1,23 @@
 import requests
-import pandas as pd
+from config.tokens import TOKENS
 
-# قیمت لحظه‌ای واقعی از GMX V2
-def get_token_price(token):
-    addresses = {
-        "ETH": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",  # WETH
-        "LINK": "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4"   # LINK
-    }
+# دریافت قیمت از CoinGecko
+def get_price_from_coingecko(symbol):
+    coingecko_id = None
+    for token in TOKENS:
+        if token["gmx_id"].lower() == symbol.lower():
+            coingecko_id = token["coingecko_id"]
+            break
 
-    if token not in addresses:
-        raise Exception("توکن پشتیبانی نمی‌شود")
+    if not coingecko_id:
+        raise ValueError(f"شناسه CoinGecko برای {symbol} یافت نشد.")
 
-    url = f"https://arbitrum-api.gmx.io/prices/{addresses[token]}"
-    response = requests.get(url)
-    data = response.json()
-    return data['price'] / 1e30
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={coingecko_id}&vs_currencies=usd"
+    res = requests.get(url)
+    data = res.json()
 
-# گرفتن دیتای کندلی برای تحلیل تکنیکال از Binance
-def get_last_prices(token, limit=100):
-    symbol_map = {
-        "ETH": "ETHUSDT",
-        "LINK": "LINKUSDT"
-    }
+    return float(data[coingecko_id]["usd"])
 
-    if token not in symbol_map:
-        raise Exception("توکن نامعتبر است")
-
-    symbol = symbol_map[token]
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit={limit}"
-    response = requests.get(url)
-    raw = response.json()
-    df = pd.DataFrame(raw, columns=[
-        'timestamp', 'open', 'high', 'low', 'close', 'volume',
-        'close_time', 'quote_asset_volume', 'num_trades',
-        'taker_buy_base_vol', 'taker_buy_quote_vol', 'ignore'
-    ])
-    df['close'] = df['close'].astype(float)
-    return df
+# تابع اصلی برای گرفتن قیمت فعلی هر توکن
+def get_current_price(symbol):
+    return get_price_from_coingecko(symbol)

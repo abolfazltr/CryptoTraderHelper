@@ -1,47 +1,84 @@
 import json
 from web3 import Web3
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
-from utils.price import get_token_price
+from utils.set_tp_sl import set_tp_sl
+from utils.helpers import load_abi
+from utils.price import get_current_price
 
-# اتصال به بلاک‌چین
+# اتصال به شبکه
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
-account = w3.eth.account.from_key(PRIVATE_KEY)
+account = w3.to_checksum_address(ACCOUNT_ADDRESS)
 
-# آدرس‌های رسمی GMX v2 روی Arbitrum
-POSITION_ROUTER = Web3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
-VAULT = Web3.to_checksum_address("0x489ee077994B6658eAfA855C308275EAd8097C4A")
-POSITION_MANAGER = Web3.to_checksum_address("0xbB1748bF0bBfE6c5F9A8f6b78f3F2A5973b9eB21")
+# بارگذاری ABI
+router_abi = load_abi("abi/PositionRouter.json")
+router = w3.eth.contract(
+    address=w3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"),
+    abi=router_abi
+)
 
-# بارگذاری ABIها
-with open("abi/PositionRouter.json") as f:
-    position_router_abi = json.load(f)
+# آدرس توکن‌ها به صورت Checksum
+WETH = w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")
+LINK = w3.to_checksum_address("0xFf970A61A04b1cA14834A43f5dE4533eBDDB5CC8")
 
-with open("abi/Vault.json") as f:
-    vault_abi = json.load(f)
+# تابع باز کردن پوزیشن واقعی
+def open_position(token_symbol, direction):
+    print(f"🚀 باز کردن پوزیشن برای {token_symbol.upper()} به صورت {direction.upper()}")
 
-with open("abi/PositionManager.json") as f:
-    position_manager_abi = json.load(f)
-
-# ساخت قراردادها
-position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
-vault = w3.eth.contract(address=VAULT, abi=vault_abi)
-position_manager = w3.eth.contract(address=POSITION_MANAGER, abi=position_manager_abi)
-
-# تابع باز کردن پوزیشن
-def open_position(token_symbol, is_long=True, amount_usd=20):
-    print(f"[+] اجرای پوزیشن برای {token_symbol}...")
-
-    # دریافت قیمت لحظه‌ای از price.py
-    price = get_token_price(token_symbol)
-    if price is None:
-        print(f"[x] قیمت {token_symbol} دریافت نشد.")
+    # انتخاب توکن
+    if token_symbol.lower() == "eth":
+        index_token = WETH
+    elif token_symbol.lower() == "link":
+        index_token = LINK
+    else:
+        print("❌ توکن ناشناخته است.")
         return
 
-    entry = price
-    tp = round(entry * 1.03, 2)
-    sl = round(entry * 0.97, 2)
+    path = [index_token]
+    is_long = direction.lower() == "long"
 
-    print(f"Entry: {entry}, TP: {tp}, SL: {sl}")
-    print(f"✅ پوزیشن {'لانگ' if is_long else 'شورت'} برای {token_symbol} باز شد با TP و SL واقعی.")
+    # قیمت لحظه‌ای
+    price = get_current_price(token_symbol)
+    print(f"✅ قیمت فعلی: {price}")
 
-    # اینجا در نسخه واقعی می‌تونه تراکنش ارسال بشه (در صورت نیاز اضافه می‌کنیم)
+    # تنظیمات پوزیشن
+    collateral = 20  # سرمایه به دلار
+    leverage = 5
+    size_usd = collateral * leverage
+    size_delta = int(size_usd * 1e30)
+
+    # محاسبه TP و SL
+    if is_long:
+        tp_price = price * 1.03
+        sl_price = price * 0.98
+    else:
+        tp_price = price * 0.97
+        sl_price = price * 1.02
+
+    tp_price_scaled = int(tp_price * 1e30)
+    sl_price_scaled = int(sl_price * 1e30)
+    acceptable_price = int(price * 1e30)
+
+    # ساخت تراکنش واقعی
+    tx = router.functions.createIncreasePosition(
+        path,
+        index_token,
+        size_delta,
+        is_long,
+        acceptable_price,
+        0  # execution fee (پیش‌پرداخت نیست، از balance کاربر کم می‌شه)
+    ).build_transaction({
+        'from': account,
+        'nonce': w3.eth.get_transaction_count(account),
+        'gas': 800000,
+        'gasPrice': w3.to_wei('1.5', 'gwei')
+    })
+
+    # امضا و ارسال
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    print("✅ پوزیشن ثبت شد، TX Hash:", tx_hash.hex())
+
+    # تنظیم حد سود و ضرر
+    set_tp_sl(path, index_token, is_long, size_delta, tp_price_scaled, sl_price_scaled)
+
+    return tx_hash.hex()

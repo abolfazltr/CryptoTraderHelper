@@ -1,37 +1,41 @@
 import time
-from utils.strategy import get_signal
+from utils.price import get_current_price
+from utils.strategy import analyze_token
 from utils.gmx_v2 import open_position
 
-# لیست توکن‌هایی که بررسی می‌شن
-TOKENS = ["ETH", "LINK"]
+TOKENS = ["eth", "link"]
 
-# تابع اصلی اجرا
-def run_bot():
-    print("✅ ربات تریدر فعال شد و در حال اجراست...\n")
+while True:
+    print("🕓 شروع بررسی بازار...\n")
 
-    while True:
-        for token in TOKENS:
-            print("--------------------------------------------------")
-            print(f"🔍 در حال بررسی توکن: {token}")
+    for token in TOKENS:
+        print(f"📊 بررسی {token.upper()}")
 
-            signal = get_signal(token)
-            print(f"📊 سیگنال دریافتی: {signal}")
+        # دریافت قیمت
+        try:
+            price = get_current_price(token)
+            print(f"✅ قیمت فعلی {token.upper()}: {price}")
+        except Exception as e:
+            print(f"❌ خطا در دریافت قیمت {token.upper()}: {e}")
+            continue
 
-            if signal == "buy":
-                print(f"✅ سیگنال خرید برای {token} تأیید شد.")
-                open_position(token_symbol=token, is_long=True)
+        # تحلیل تکنیکال
+        try:
+            signal = analyze_token(token)
+        except Exception as e:
+            print(f"❌ خطا در تحلیل {token.upper()}: {e}")
+            continue
 
-            elif signal == "sell":
-                print(f"✅ سیگنال فروش برای {token} تأیید شد.")
-                open_position(token_symbol=token, is_long=False)
+        # اجرای پوزیشن در صورت سیگنال معتبر
+        if signal:
+            print(f"🚀 سیگنال معتبر برای {token.upper()} به صورت {signal.upper()}")
+            try:
+                tx_hash = open_position(token, signal)
+                print(f"✅ پوزیشن واقعی ثبت شد، TX Hash: {tx_hash}")
+            except Exception as e:
+                print(f"❌ خطا در باز کردن پوزیشن: {e}")
+        else:
+            print(f"🔍 هیچ سیگنالی برای {token.upper()} صادر نشده.")
 
-            else:
-                print(f"❌ هیچ سیگنالی برای {token} صادر نشد.")
-
-        print("\n⏱️ منتظر ۵ دقیقه بعدی...\n")
-        time.sleep(300)
-
-
-# اجرای خودکار برنامه در Render و Replit
-if __name__ == "__main__":
-    run_bot()
+    print("\n⏳ منتظر اجرای بعدی در ۵ دقیقه...\n")
+    time.sleep(300)
