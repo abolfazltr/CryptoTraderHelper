@@ -27,7 +27,6 @@ while True:
         sys.stdout.flush()
 
         signal = analyze_token(token)
-
         if signal is None:
             print(f"❌ سیگنال None برگشت داده شده برای {token.upper()} — احتمالاً خطا در دیتا یا تحلیل")
             sys.stdout.flush()
