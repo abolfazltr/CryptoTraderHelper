@@ -12,43 +12,18 @@ while True:
 
     for token in TOKENS:
         print(f"📊 بررسی توکن: {token.upper()}")
-        sys.stdout.flush()
+        current_price = get_current_price(token)
+        print(f"💰 قیمت لحظه‌ای: {current_price}")
 
-        # دریافت قیمت
-        try:
-            price = get_current_price(token)
-            print(f"✅ قیمت فعلی {token.upper()}: {price}")
-        except Exception as e:
-            if "ConnectionError" in str(e) or "NameResolutionError" in str(e):
-                print(f"❌ خطا در اتصال به صرافی برای {token.upper()}: {e}")
-            else:
-                print(f"❌ خطا در دریافت قیمت {token.upper()}: {e}")
-            sys.stdout.flush()
-            continue
-
-        # تحلیل تکنیکال
-        try:
-            print("🔎 تحلیل تکنیکال در حال انجام است...")
-            signal = analyze_token(token)
-            print(f"🔍 سیگنال تحلیل شده: {signal}")
-        except Exception as e:
-            print(f"❌ خطا در تحلیل تکنیکال {token.upper()}: {e}")
-            sys.stdout.flush()
-            continue
-
-        # اجرای پوزیشن در صورت وجود سیگنال
-        if signal:
-            print(f"🚀 سیگنال معتبر برای {token.upper()} به صورت {signal.upper()}")
-            try:
-                tx_hash = open_position(token, signal)
-                print(f"✅ پوزیشن واقعی باز شد | TX Hash: {tx_hash}")
-            except Exception as e:
-                print(f"❌ خطا در باز کردن پوزیشن: {e}")
+        signal = analyze_token(token)
+        if signal in ["long", "short"]:
+            print(f"📈 سیگنال معتبر پیدا شد: {signal.upper()} برای {token.upper()}")
+            open_position(token, signal)
         else:
-            print(f"❌ هیچ سیگنالی برای {token.upper()} صادر نشده.")
+            print("❌ هیچ سیگنال معتبری صادر نشد")
 
-        sys.stdout.flush()
+        print("-------------\n")
+        time.sleep(1)
 
-    print("⏳ منتظر اجرای بعدی در ۵ دقیقه...\n")
-    sys.stdout.flush()
+    print("⏳ در انتظار ۵ دقیقه بعدی...\n")
     time.sleep(300)
