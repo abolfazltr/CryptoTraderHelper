@@ -4,3 +4,4 @@ requests
 pandas-ta
 web3
 ta
+python-dotenv
