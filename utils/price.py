@@ -1,39 +1,42 @@
 import requests
+import time
 
-def get_price_from_gmx(token_symbol):
-    token_map = {
-        "eth": "ETH",
-        "link": "LINK"
-    }
-    if token_symbol.lower() not in token_map:
-        return None
-
+def get_current_price(symbol: str) -> float:
+    """
+    گرفتن قیمت لحظه‌ای از MEXC
+    symbol باید مثل ETHUSDT یا LINKUSDT باشه
+    """
     try:
-        response = requests.get("https://api.gmx.io/prices")
-        response.raise_for_status()
+        url = f"https://api.mexc.com/api/v3/ticker/price?symbol={symbol.upper()}USDT"
+        response = requests.get(url)
         data = response.json()
-        price = data[token_map[token_symbol.lower()]] / 1e30  # GMX returns price with 30 decimals
-        return round(price, 2)
+        return float(data["price"])
     except Exception as e:
-        print(f"GMX price fetch error: {e}")
+        print(f"❌ خطا در دریافت قیمت {symbol}: {e}")
         return None
 
-def get_price_from_dexscreener(token_symbol):
+def get_candles(symbol: str, interval='5m', limit=20):
+    """
+    گرفتن کندل‌ها از MEXC برای تحلیل
+    interval مثل 1m, 5m, 15m, 1h, ...
+    """
     try:
-        response = requests.get(f"https://api.dexscreener.com/latest/dex/pairs")
-        response.raise_for_status()
+        url = f"https://api.mexc.com/api/v3/klines?symbol={symbol.upper()}USDT&interval={interval}&limit={limit}"
+        response = requests.get(url)
         data = response.json()
-        for pair in data["pairs"]:
-            if token_symbol.lower() in pair["baseToken"]["symbol"].lower():
-                return float(pair["priceUsd"])
-        return None
-    except Exception as e:
-        print(f"Dexscreener price fetch error: {e}")
-        return None
 
-def get_current_price(token_symbol):
-    token_symbol = token_symbol.lower()
-    if token_symbol in ["eth", "link"]:
-        return get_price_from_gmx(token_symbol)
-    else:
-        return get_price_from_dexscreener(token_symbol)
+        candles = []
+        for d in data:
+            candles.append({
+                'timestamp': d[0],
+                'open': float(d[1]),
+                'high': float(d[2]),
+                'low': float(d[3]),
+                'close': float(d[4]),
+                'volume': float(d[5])
+            })
+
+        return candles
+    except Exception as e:
+        print(f"❌ خطا در دریافت کندل‌های {symbol}: {e}")
+        return []
