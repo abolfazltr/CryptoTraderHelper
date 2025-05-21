@@ -1,10 +1,8 @@
 import os
+from dotenv import load_dotenv
 
-# خواندن مقادیر از Secrets
-RPC_URL = os.getenv("RPC_URL")
+load_dotenv()
+
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+RPC_URL = os.getenv("RPC_URL")
 ACCOUNT_ADDRESS = os.getenv("ACCOUNT_ADDRESS")
-
-# تنظیمات ثابت ترید
-AMOUNT_IN_USD = 20  # مقدار سرمایه به دلار
-LEVERAGE = 5        # اهرم استفاده شده

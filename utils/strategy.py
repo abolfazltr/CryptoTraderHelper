@@ -1,42 +1,21 @@
-from utils.indicators import calculate_supertrend, calculate_ema
-from utils.price import get_last_prices
+def get_signal(token):
+    print(f"در حال بررسی شرایط برای {token}...")
 
-def get_signal(symbol, current_price):
-    try:
-        prices = get_last_prices(symbol)
-        print(f"[DEBUG] قیمت‌های دریافت‌شده برای {symbol}: {prices}")
+    # شبیه‌سازی داده‌ها (در نسخه نهایی با دیتا واقعی جایگزین کن)
+    supertrend_signal = "LONG"
+    ema_short = 2479.77
+    ema_long = 2479.77
 
-        if len(prices) < 20:
-            print(f"[ERROR] تعداد قیمت کافی نیست برای {symbol}")
-            return {"signal": None, "supertrend": "UNKNOWN", "ema_short": 0, "ema_long": 0, "ema_cross": False}
+    print(f"supertrend: {supertrend_signal}")
+    print(f"EMA short: {ema_short} | EMA long: {ema_long}")
+    print(f"EMA cross condition: {ema_short} → {ema_long}")
 
-        ema_short = calculate_ema(prices, period=10)[-1]
-        ema_long = calculate_ema(prices, period=20)[-1]
-
-        trend_list = calculate_supertrend(prices, period=10, multiplier=2)
-        trend = trend_list[-1] if trend_list else "unknown"
-
-        # کراس معتبر فقط در صورت اختلاف واضح
-        ema_cross = False
-        if trend == "up" and (ema_short - ema_long) > 0.05:
-            ema_cross = True
-        elif trend == "down" and (ema_long - ema_short) > 0.05:
-            ema_cross = True
-
-        signal = None
-        if trend == "up" and ema_cross:
-            signal = "long"
-        elif trend == "down" and ema_cross:
-            signal = "short"
-
-        return {
-            "supertrend": "LONG" if trend == "up" else "SHORT",
-            "ema_short": round(ema_short, 2),
-            "ema_long": round(ema_long, 2),
-            "ema_cross": ema_cross,
-            "signal": signal
-        }
-
-    except Exception as e:
-        print("[EXCEPTION]", e)
-        return {"signal": None, "supertrend": "ERROR", "ema_short": 0, "ema_long": 0, "ema_cross": False}
+    if supertrend_signal == "LONG" and ema_short > ema_long:
+        print("سیگنال خرید تولید شد 🔍")
+        return "buy"
+    elif supertrend_signal == "SHORT" and ema_short < ema_long:
+        print("سیگنال فروش تولید شد 🔍")
+        return "sell"
+    else:
+        print("❌ هیچ شرایط سیگنالی برقرار نیست.")
+        return None

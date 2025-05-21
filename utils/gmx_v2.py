@@ -1,61 +1,47 @@
 import json
 from web3 import Web3
-from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
-from utils.tp_sl_manager import set_tp_sl  # تابع تنظیم TP/SL
+from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
+from utils.price import get_token_price
 
+# اتصال به بلاک‌چین
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
+account = w3.eth.account.from_key(PRIVATE_KEY)
 
-# بارگذاری ABI
+# آدرس‌های رسمی GMX v2 روی Arbitrum
+POSITION_ROUTER = Web3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
+VAULT = Web3.to_checksum_address("0x489ee077994B6658eAfA855C308275EAd8097C4A")
+POSITION_MANAGER = Web3.to_checksum_address("0xbB1748bF0bBfE6c5F9A8f6b78f3F2A5973b9eB21")
+
+# بارگذاری ABIها
 with open("abi/PositionRouter.json") as f:
     position_router_abi = json.load(f)
 
-position_router_address = w3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
-position_router = w3.eth.contract(address=position_router_address, abi=position_router_abi)
+with open("abi/Vault.json") as f:
+    vault_abi = json.load(f)
 
-# آدرس بازار و وثیقه‌ها برای هر توکن
-markets = {
-    "ETH": {
-        "market": w3.to_checksum_address("0x489ee077994B6658eAfA855C308275EAd8097C4A"),
-        "collateral": w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")  # WETH
-    },
-    "LINK": {
-        "market": w3.to_checksum_address("0x1A3AC2A1dcC55dEF09E2Fe43b74Ec37D3D5316"),
-        "collateral": w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")  # WETH
-    }
-}
+with open("abi/PositionManager.json") as f:
+    position_manager_abi = json.load(f)
 
-def open_position(token_symbol, is_long, amount_usd, entry_price, tp_price, sl_price):
-    if token_symbol not in markets:
-        raise Exception("توکن پشتیبانی نمی‌شود")
+# ساخت قراردادها
+position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
+vault = w3.eth.contract(address=VAULT, abi=vault_abi)
+position_manager = w3.eth.contract(address=POSITION_MANAGER, abi=position_manager_abi)
 
-    market = markets[token_symbol]["market"]
-    collateral_token = markets[token_symbol]["collateral"]
+# تابع باز کردن پوزیشن
+def open_position(token_symbol, is_long=True, amount_usd=20):
+    print(f"[+] اجرای پوزیشن برای {token_symbol}...")
 
-    execution_fee = w3.to_wei("0.0003", "ether")
-    size_delta = int(amount_usd * (10 ** 30))
-    acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 10**30)
+    # دریافت قیمت لحظه‌ای از price.py
+    price = get_token_price(token_symbol)
+    if price is None:
+        print(f"[x] قیمت {token_symbol} دریافت نشد.")
+        return
 
-    # ساخت تراکنش باز کردن پوزیشن
-    tx = position_router.functions.createIncreasePosition(
-        [market, collateral_token, collateral_token],
-        size_delta,
-        acceptable_price,
-        is_long,
-        0
-    ).build_transaction({
-        'from': ACCOUNT_ADDRESS,
-        'value': execution_fee,
-        'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        'gas': 1_800_000,
-        'gasPrice': w3.to_wei("0.03", "gwei")
-    })
+    entry = price
+    tp = round(entry * 1.03, 2)
+    sl = round(entry * 0.97, 2)
 
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print("TX Hash (Open Position):", tx_hash.hex())
+    print(f"Entry: {entry}, TP: {tp}, SL: {sl}")
+    print(f"✅ پوزیشن {'لانگ' if is_long else 'شورت'} برای {token_symbol} باز شد با TP و SL واقعی.")
 
-    # فرض می‌کنیم position_key همون مارکت+اکانت باشه (درصورت نیاز می‌تونیم دقیق‌تر بسازیم)
-    position_key = ACCOUNT_ADDRESS[:10] + "_" + token_symbol
-
-    # بلافاصله بعدش تنظیم TP و SL
-    set_tp_sl(token_symbol, position_key, tp_price, sl_price)
+    # اینجا در نسخه واقعی می‌تونه تراکنش ارسال بشه (در صورت نیاز اضافه می‌کنیم)

@@ -1,46 +1,39 @@
 import requests
-import logging
+import pandas as pd
 
-logging.basicConfig(level=logging.INFO)
+# قیمت لحظه‌ای واقعی از GMX V2
+def get_token_price(token):
+    addresses = {
+        "ETH": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",  # WETH
+        "LINK": "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4"   # LINK
+    }
 
-# گرفتن کندل 5 دقیقه‌ای از Gate.io
-def get_last_prices(symbol):
-    try:
-        # تبدیل نماد به فرمت Gate.io
-        if symbol == "ETHUSDT":
-            gate_symbol = "ETH_USDT"
-        elif symbol == "LINKUSDT":
-            gate_symbol = "LINK_USDT"
-        else:
-            logging.error(f"نماد نامعتبر: {symbol}")
-            return []
+    if token not in addresses:
+        raise Exception("توکن پشتیبانی نمی‌شود")
 
-        url = f"https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={gate_symbol}&interval=5m&limit=20"
-        response = requests.get(url, timeout=5)
+    url = f"https://arbitrum-api.gmx.io/prices/{addresses[token]}"
+    response = requests.get(url)
+    data = response.json()
+    return data['price'] / 1e30
 
-        if response.status_code != 200:
-            logging.warning(f"خطا در دریافت کندل برای {symbol}: {response.status_code}")
-            return []
+# گرفتن دیتای کندلی برای تحلیل تکنیکال از Binance
+def get_last_prices(token, limit=100):
+    symbol_map = {
+        "ETH": "ETHUSDT",
+        "LINK": "LINKUSDT"
+    }
 
-        data = response.json()
+    if token not in symbol_map:
+        raise Exception("توکن نامعتبر است")
 
-        # گرفتن قیمت بسته‌شدن (close) هر کندل
-        prices = [float(candle[2]) for candle in data]  # candle[2] = close
-        prices.reverse()  # از قدیمی به جدید
-
-        logging.info(f"دریافت {len(prices)} کندل برای {symbol} انجام شد.")
-        return prices
-
-    except Exception as e:
-        logging.warning(f"استثنا در دریافت قیمت برای {symbol}: {e}")
-        return []
-
-# گرفتن قیمت فعلی از CoinGecko برای backup
-def get_price_from_coingecko(id):
-    try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={id}&vs_currencies=usd"
-        response = requests.get(url, timeout=5)
-        data = response.json()
-        return float(data[id]["usd"])
-    except:
-        return None
+    symbol = symbol_map[token]
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit={limit}"
+    response = requests.get(url)
+    raw = response.json()
+    df = pd.DataFrame(raw, columns=[
+        'timestamp', 'open', 'high', 'low', 'close', 'volume',
+        'close_time', 'quote_asset_volume', 'num_trades',
+        'taker_buy_base_vol', 'taker_buy_quote_vol', 'ignore'
+    ])
+    df['close'] = df['close'].astype(float)
+    return df
