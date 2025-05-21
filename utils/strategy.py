@@ -36,9 +36,9 @@ def ema_signal(df):
     df["ema_short"] = df["close"].ewm(span=EMA_SHORT).mean()
     df["ema_long"] = df["close"].ewm(span=EMA_LONG).mean()
 
-    if df["ema_short"].iloc[-2] < df["ema_long"].iloc[-2] and df["ema_short"].iloc[-1] > df["ema_long"].iloc[-1]:
+    if df["ema_short"].iloc[-3] < df["ema_long"].iloc[-3] and df["ema_short"].iloc[-2] > df["ema_long"].iloc[-2]:
         return "long"
-    elif df["ema_short"].iloc[-2] > df["ema_long"].iloc[-2] and df["ema_short"].iloc[-1] < df["ema_long"].iloc[-1]:
+    elif df["ema_short"].iloc[-3] > df["ema_long"].iloc[-3] and df["ema_short"].iloc[-2] < df["ema_long"].iloc[-2]:
         return "short"
     return None
 
@@ -69,11 +69,11 @@ def analyze_token(token):
         return None
 
     df = calculate_supertrend(df)
-    st_signal = "long" if df["supertrend"].iloc[-1] else "short"
+    st_signal = "long" if df["supertrend"].iloc[-2] else "short"  # تغییر مهم
     ema_sig = ema_signal(df)
 
-    print(f"📈 EMA short: {df['ema_short'].iloc[-1]:.2f}")
-    print(f"📉 EMA long: {df['ema_long'].iloc[-1]:.2f}")
+    print(f"📈 EMA short: {df['ema_short'].iloc[-2]:.2f}")
+    print(f"📉 EMA long: {df['ema_long'].iloc[-2]:.2f}")
     print(f"🟢 Supertrend وضعیت: {st_signal.upper()}")
     print(f"🔍 EMA signal: {ema_sig}")
 
