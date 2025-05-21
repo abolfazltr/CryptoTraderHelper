@@ -1,53 +1,48 @@
 import time
 import logging
-from utils.price import get_price_from_gmx, get_price_from_coingecko
+from utils.price import get_last_prices, get_price_from_coingecko
 from utils.strategy import get_signal
 from config.tokens import TOKENS
-from utils.gmx_v2 import open_position  # ← مسیر اصلاح‌شده
+from utils.gmx_v2 import open_position  # ← این مسیر همون بمونه
 
-# تنظیم لاگر
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO)
 
 def analyze_token(token):
-    logging.info(f"[{token['symbol']}] تحلیل در حال اجرا...")
+    print(f"\n[{token['symbol']}] تحلیل در حال اجرا...")
 
-    price_gmx = get_price_from_gmx(token['gmx_id'])
-    price_cg = get_price_from_coingecko(token['coingecko_id'])
-    final_price = price_gmx if price_gmx else price_cg
+    # دریافت لیست قیمت واقعی
+    prices = get_last_prices(token['symbol'])
 
-    if not final_price:
-        logging.warning("قیمت نهایی یافت نشد. تحلیل انجام نشد.")
+    if not prices or len(prices) < 20:
+        print("قیمت کافی برای تحلیل وجود ندارد.")
         return
 
-    logging.info(f"قیمت از GMX: {price_gmx}")
-    logging.info(f"قیمت از CoinGecko: {price_cg}")
-    logging.info(f"قیمت نهایی: {final_price}")
+    # تحلیل
+    result = get_signal(token["symbol"], prices[-1])  # قیمت آخر (کندل جدیدترین)
+    logging.info(f"[DEBUG] نتایج تحلیل برای {token['symbol']}: {result}")
 
-    result = get_signal(token["symbol"], final_price)
-    logging.debug(f"[DEBUG] قیمت‌های دریافت‌شده برای {token['symbol']}: {result}")
-
-    logging.info(f"Supertrend: {result['supertrend']}")
-    logging.info(f"EMA short: {result['ema_short']} | EMA long: {result['ema_long']}")
+    print(f"Supertrend: {result['supertrend']}")
+    print(f"EMA short: {result['ema_short']} | EMA long: {result['ema_long']}")
 
     if result['ema_cross']:
-        logging.info("کراس EMA برقرار است.")
+        print("کراس EMA برقرار است.")
     else:
-        logging.info("کراس EMA برقرار نیست.")
+        print("کراس EMA برقرار نیست.")
 
     if result['signal'] == "long":
-        logging.info("سیگنال نهایی: پوزیشن LONG → وارد شو")
+        print("سیگنال نهایی: پوزیشن LONG → وارد شو")
         open_position("long", token["symbol"])
     elif result['signal'] == "short":
-        logging.info("سیگنال نهایی: پوزیشن SHORT → وارد شو")
+        print("سیگنال نهایی: پوزیشن SHORT → وارد شو")
         open_position("short", token["symbol"])
     else:
-        logging.info("سیگنال نهایی: ورود نکن")
+        print("سیگنال نهایی: ورود نکن")
 
 # اجرای مداوم هر ۵ دقیقه
-if __name__ == "__main__":
-    while True:
-        logging.info("=" * 60)
-        for token in TOKENS:
-            analyze_token(token)
-        logging.info("در حال انتظار برای دور بعدی...\n")
-        time.sleep(300)
+while True:
+    print("=" * 60)
+    for token in TOKENS:
+        analyze_token(token)
+
+    print("\nدر حال انتظار برای دور بعدی...\n")
+    time.sleep(300)
