@@ -14,20 +14,23 @@ def fetch_ohlc_coingecko(symbol):
 
     token_id = coingecko_ids.get(symbol.lower())
     if not token_id:
-        print("❌ توکن پشتیبانی نمی‌شود.")
+        print("❌ توکن پشتیبانی نمی‌شود:", symbol)
         return None
 
     url = f"https://api.coingecko.com/api/v3/coins/{token_id}/ohlc?vs_currency=usd&days=1"
     headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers, timeout=10)
 
-    if response.status_code != 200:
-        print(f"❌ خطا در دریافت کندل {symbol.upper()}: {response.text}")
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"❌ خطا در دریافت کندل {symbol.upper()}: Status {response.status_code} | {response.text}")
+            return None
+        raw = response.json()
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close"])
+        return df
+    except Exception as e:
+        print(f"❌ استثنا در اتصال CoinGecko برای {symbol.upper()}: {e}")
         return None
-
-    raw = response.json()
-    df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close"])
-    return df
 
 def ema_signal(df):
     df["ema_short"] = df["close"].ewm(span=EMA_SHORT).mean()
@@ -59,24 +62,24 @@ def calculate_supertrend(df, period=SUPERTREND_PERIOD, multiplier=SUPERTREND_MUL
     return df
 
 def analyze_token(token):
+    print("🔍 در حال دریافت کندل‌های CoinGecko...")
     df = fetch_ohlc_coingecko(token)
     if df is None or df.empty:
-        print("❌ کندل‌داده‌ها دریافت نشد.")
+        print("❌ دریافت کندل ناموفق بود.")
         return None
 
     df = calculate_supertrend(df)
     st_signal = "long" if df["supertrend"].iloc[-1] else "short"
     ema_sig = ema_signal(df)
 
-    # چاپ وضعیت دقیق
     print(f"📈 EMA short: {df['ema_short'].iloc[-1]:.2f}")
     print(f"📉 EMA long: {df['ema_long'].iloc[-1]:.2f}")
-    print(f"🟢 Supertrend وضعیت: {'LONG' if st_signal == 'long' else 'SHORT'}")
+    print(f"🟢 Supertrend وضعیت: {st_signal.upper()}")
     print(f"🔍 EMA signal: {ema_sig}")
 
     if ema_sig == st_signal:
-        print(f"✅ تحلیل نهایی: ورود به پوزیشن {ema_sig.upper()}")
+        print(f"✅ سیگنال معتبر: {ema_sig.upper()}")
         return ema_sig
     else:
-        print("❌ هیچ سیگنال معتبری صادر نشده.")
+        print("❌ هیچ سیگنال معتبری صادر نشد.")
         return None
