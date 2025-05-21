@@ -1,48 +1,54 @@
 import time
-import logging
-from utils.price import get_last_prices, get_price_from_coingecko
-from utils.strategy import get_signal
-from config.tokens import TOKENS
-from utils.gmx_v2 import open_position  # ← این مسیر همون بمونه
+from utils.price import get_token_price
+from utils.strategy import generate_signal
+from utils.gmx import open_position
 
-logging.basicConfig(level=logging.INFO)
+# تنظیمات توکن‌ها
+TOKENS = {
+    "ETH": {"amount_usd": 20},
+    "LINK": {"amount_usd": 20}
+}
 
-def analyze_token(token):
-    print(f"\n[{token['symbol']}] تحلیل در حال اجرا...")
+# درصد سود و ضرر
+TP_PERCENT = 0.04  # ۴٪ سود
+SL_PERCENT = 0.025  # ۲.۵٪ ضرر
 
-    # دریافت لیست قیمت واقعی
-    prices = get_last_prices(token['symbol'])
-
-    if not prices or len(prices) < 20:
-        print("قیمت کافی برای تحلیل وجود ندارد.")
-        return
-
-    # تحلیل
-    result = get_signal(token["symbol"], prices[-1])  # قیمت آخر (کندل جدیدترین)
-    logging.info(f"[DEBUG] نتایج تحلیل برای {token['symbol']}: {result}")
-
-    print(f"Supertrend: {result['supertrend']}")
-    print(f"EMA short: {result['ema_short']} | EMA long: {result['ema_long']}")
-
-    if result['ema_cross']:
-        print("کراس EMA برقرار است.")
-    else:
-        print("کراس EMA برقرار نیست.")
-
-    if result['signal'] == "long":
-        print("سیگنال نهایی: پوزیشن LONG → وارد شو")
-        open_position("long", token["symbol"])
-    elif result['signal'] == "short":
-        print("سیگنال نهایی: پوزیشن SHORT → وارد شو")
-        open_position("short", token["symbol"])
-    else:
-        print("سیگنال نهایی: ورود نکن")
-
-# اجرای مداوم هر ۵ دقیقه
+# حلقه اصلی ربات
 while True:
-    print("=" * 60)
     for token in TOKENS:
-        analyze_token(token)
+        print(f"\nبررسی توکن: {token}")
 
-    print("\nدر حال انتظار برای دور بعدی...\n")
+        price = get_token_price(token)
+        print("قیمت لحظه‌ای:", price)
+
+        signal = generate_signal(token)
+        print("سیگنال تحلیل:", signal)
+
+        if signal in ["LONG", "SHORT"]:
+            is_long = signal == "LONG"
+            entry_price = price
+
+            # محاسبه حد سود و ضرر
+            if is_long:
+                tp_price = entry_price * (1 + TP_PERCENT)
+                sl_price = entry_price * (1 - SL_PERCENT)
+            else:
+                tp_price = entry_price * (1 - TP_PERCENT)
+                sl_price = entry_price * (1 + SL_PERCENT)
+
+            print(f"باز کردن پوزیشن {signal} روی {token}...")
+            print(f"Entry: {entry_price:.2f}, TP: {tp_price:.2f}, SL: {sl_price:.2f}")
+
+            open_position(
+                token_symbol=token,
+                is_long=is_long,
+                amount_usd=TOKENS[token]["amount_usd"],
+                entry_price=entry_price,
+                tp_price=tp_price,
+                sl_price=sl_price
+            )
+        else:
+            print("سیگنال معتبری نیست. فعلاً پوزیشنی باز نمی‌شود.")
+
+    # صبر ۵ دقیقه‌ای
     time.sleep(300)

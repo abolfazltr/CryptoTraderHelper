@@ -1,0 +1,27 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          { "internalType": "address", "name": "receiver", "type": "address" },
+          { "internalType": "address", "name": "callbackContract", "type": "address" },
+          { "internalType": "address", "name": "market", "type": "address" },
+          { "internalType": "address", "name": "initialCollateralToken", "type": "address" },
+          { "internalType": "uint256", "name": "sizeDeltaUsd", "type": "uint256" },
+          { "internalType": "uint256", "name": "acceptablePrice", "type": "uint256" },
+          { "internalType": "uint256", "name": "triggerPrice", "type": "uint256" },
+          { "internalType": "bool", "name": "triggerAboveThreshold", "type": "bool" },
+          { "internalType": "uint256", "name": "executionFee", "type": "uint256" },
+          { "internalType": "bool", "name": "shouldUnwrapNativeToken", "type": "bool" }
+        ],
+        "internalType": "struct CreateOrderParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
+    "name": "createOrder",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+]

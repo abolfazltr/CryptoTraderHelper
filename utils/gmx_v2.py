@@ -1,75 +1,61 @@
 import json
-import logging
 from web3 import Web3
 from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
+from utils.tp_sl_manager import set_tp_sl  # تابع تنظیم TP/SL
 
-# تنظیم لاگر
-logging.basicConfig(level=logging.INFO)
-
-# اتصال به شبکه
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
-# بارگذاری ABIها
+# بارگذاری ABI
 with open("abi/PositionRouter.json") as f:
     position_router_abi = json.load(f)
 
-with open("abi/Vault.json") as f:
-    vault_abi = json.load(f)
+position_router_address = w3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
+position_router = w3.eth.contract(address=position_router_address, abi=position_router_abi)
 
-# آدرس قراردادها
-POSITION_ROUTER = w3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
-VAULT = w3.to_checksum_address("0x489ee077994B6658eAfA855C308275EAd8097C4A")
-
-# آدرس توکن‌ها
-TOKENS = {
-    "ETHUSDT": w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1"),
-    "LINKUSDT": w3.to_checksum_address("0xf97f4df75117a78c1A5a0DBb814Af92458539FB4"),
+# آدرس بازار و وثیقه‌ها برای هر توکن
+markets = {
+    "ETH": {
+        "market": w3.to_checksum_address("0x489ee077994B6658eAfA855C308275EAd8097C4A"),
+        "collateral": w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")  # WETH
+    },
+    "LINK": {
+        "market": w3.to_checksum_address("0x1A3AC2A1dcC55dEF09E2Fe43b74Ec37D3D5316"),
+        "collateral": w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")  # WETH
+    }
 }
 
-# ساخت قراردادها
-position_router_contract = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
-vault_contract = w3.eth.contract(address=VAULT, abi=vault_abi)
+def open_position(token_symbol, is_long, amount_usd, entry_price, tp_price, sl_price):
+    if token_symbol not in markets:
+        raise Exception("توکن پشتیبانی نمی‌شود")
 
-def open_position(signal, symbol):
-    token = TOKENS.get(symbol)
-    if not token:
-        logging.error(f"⛔ توکن {symbol} در لیست نیست.")
-        return
+    market = markets[token_symbol]["market"]
+    collateral_token = markets[token_symbol]["collateral"]
 
-    amount_in = w3.to_wei(0.008, 'ether')  # تقریباً ۲۰ دلار
-    is_long = signal == "long"
-    acceptable_price = 10**30
-    min_out = 0
-    size_delta = w3.to_wei(0.04, 'ether')  # با لوریج ۵
+    execution_fee = w3.to_wei("0.0003", "ether")
+    size_delta = int(amount_usd * (10 ** 30))
+    acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 10**30)
 
-    params = [
-        [token],
-        token,
-        amount_in,
-        min_out,
+    # ساخت تراکنش باز کردن پوزیشن
+    tx = position_router.functions.createIncreasePosition(
+        [market, collateral_token, collateral_token],
+        size_delta,
         acceptable_price,
         is_long,
-        size_delta,
-        0,
-        acceptable_price
-    ]
+        0
+    ).build_transaction({
+        'from': ACCOUNT_ADDRESS,
+        'value': execution_fee,
+        'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
+        'gas': 1_800_000,
+        'gasPrice': w3.to_wei("0.03", "gwei")
+    })
 
-    try:
-        tx = position_router_contract.functions.createIncreasePosition(
-            *params,
-            0,
-            "0x0000000000000000000000000000000000000000"
-        ).build_transaction({
-            'from': ACCOUNT_ADDRESS,
-            'value': 0,
-            'gas': 800000,
-            'gasPrice': w3.to_wei("2", "gwei"),
-            'nonce': w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        })
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    print("TX Hash (Open Position):", tx_hash.hex())
 
-        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logging.info(f"✅ پوزیشن واقعی {signal.upper()} برای {symbol} ارسال شد. TX: {w3.to_hex(tx_hash)}")
+    # فرض می‌کنیم position_key همون مارکت+اکانت باشه (درصورت نیاز می‌تونیم دقیق‌تر بسازیم)
+    position_key = ACCOUNT_ADDRESS[:10] + "_" + token_symbol
 
-    except Exception as e:
-        logging.error(f"⛔ خطا در ارسال پوزیشن برای {symbol}: {e}")
+    # بلافاصله بعدش تنظیم TP و SL
+    set_tp_sl(token_symbol, position_key, tp_price, sl_price)
