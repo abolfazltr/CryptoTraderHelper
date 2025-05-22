@@ -1,43 +1,49 @@
 import time
 import sys
 from utils.strategy import analyze_token
-from utils.price import get_current_price
 from utils.gmx_v2 import open_position
-from config.tokens import TOKENS
 
-def flush_print(msg):
-    print(msg)
-    sys.stdout.flush()
+TOKENS = ["eth", "link"]
+NAMES = {"eth": "E", "link": "S"}
 
 while True:
-    flush_print("\n🕓 شروع بررسی بازار...\n")
-    flush_print(f"📋 لیست توکن‌ها دریافت شد: {[token['symbol'] for token in TOKENS]}")
+    print("\n==============================")
+    print("🕓 شروع بررسی بازار...\n")
+    sys.stdout.flush()
+
+    summary = []  # برای چاپ خلاصه آخر کار
 
     for token in TOKENS:
+        symbol = NAMES[token]
+        print(f"📊 بررسی توکن: {token.upper()} ({symbol})")
+
         try:
-            symbol = token["symbol"]
-            gmx_id = token["gmx_id"]
-            coingecko_id = token["coingecko_id"]
-
-            flush_print(f"\n📍 بررسی شروع شد برای {symbol}")
-            flush_print(f"➡️ ارسال به analyze_token: {gmx_id.lower()}")
-
-            signal = analyze_token(gmx_id.lower())
-
-            if signal:
-                flush_print(f"📡 سیگنال تحلیل دریافت شد: {signal.upper()}")
-                current_price = get_current_price(gmx_id.lower())
-                if current_price:
-                    flush_print(f"✅ قیمت لحظه‌ای {gmx_id.upper()}: {current_price}")
-                    flush_print(f"🚀 ارسال دستور پوزیشن ({signal.upper()}) برای {gmx_id.upper()}...\n")
-                    open_position(gmx_id.lower(), signal == "long", current_price)
-                else:
-                    flush_print(f"❌ خطا در دریافت قیمت لحظه‌ای برای {gmx_id.upper()}")
-            else:
-                flush_print(f"⚠️ هیچ سیگنال معتبری برای {gmx_id.upper()} صادر نشد.\n")
-
+            signal = analyze_token(token)
         except Exception as e:
-            flush_print(f"❌ خطای غیرمنتظره در بررسی {symbol}: {e}")
+            print(f"❌ خطا در تحلیل {symbol}: {e}")
+            summary.append(f"{symbol} = ERROR")
+            continue
 
-    flush_print("\n⏳ منتظر اجرای بعدی در ۵ دقیقه...\n")
+        if signal:
+            print(f"🚨 سیگنال برای {symbol}: {signal.upper()}")
+            try:
+                df = analyze_token(token)
+                if df is not None:
+                    price = df["close"].iloc[-1]
+                    print(f"💰 قیمت ورود: {price:.4f}")
+                    open_position(token, signal == "long", price)
+                    summary.append(f"{symbol} = {signal.upper()}")
+                else:
+                    print(f"❌ دریافت قیمت برای {symbol} ناموفق بود.")
+                    summary.append(f"{symbol} = NO PRICE")
+            except Exception as e:
+                print(f"❌ خطا در باز کردن پوزیشن {symbol}: {e}")
+                summary.append(f"{symbol} = FAIL")
+        else:
+            print(f"⛔ سیگنالی برای {symbol} یافت نشد.")
+            summary.append(f"{symbol} = NO SIGNAL")
+
+    print("\n🧾 خلاصه سیگنال‌ها:", " / ".join(summary))
+    print("\n⏳ منتظر ۵ دقیقه بعدی...\n")
+    print("==============================\n")
     time.sleep(300)

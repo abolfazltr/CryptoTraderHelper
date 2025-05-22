@@ -1,5 +1,11 @@
-import pandas as pd
+import os
 import requests
+import pandas as pd
+from dotenv import load_dotenv
+
+# بارگذاری API Key از .env
+load_dotenv()
+API_KEY = os.getenv("POLYGON_API_KEY")
 
 EMA_SHORT = 10
 EMA_LONG = 21
@@ -7,112 +13,86 @@ SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3
 
 def fetch_ohlc_data(symbol):
-    print(f"⚙️ تلاش برای دریافت کندل برای {symbol.upper()} از CoinGecko...")
-    df = fetch_ohlc_coingecko(symbol)
-    if df is not None and not df.empty:
-        print("✅ دریافت موفق از CoinGecko")
-        return df
-    else:
-        print(f"🌀 CoinGecko شکست خورد. تلاش با Bitget برای {symbol.upper()}...")
-
-        try:
-            url = f"https://api.bitget.com/api/mix/v1/market/candles?symbol={symbol.upper()}USDT_UMCBL&granularity=300"
-            response = requests.get(url)
-            data = response.json()
-            raw = data["data"]
-
-            df = pd.DataFrame(raw, columns=[
-                "timestamp", "open", "high", "low", "close", "volume", "xx", "yy"
-            ])
-
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit='ms')
-            df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].astype(float)
-
-            print("✅ دریافت موفق از Bitget")
-            return df
-        except Exception as e:
-            print(f"❌ شکست در دریافت کندل از Bitget برای {symbol.upper()}: {e}")
-            return None
-
-def fetch_ohlc_coingecko(symbol):
-    coingecko_ids = {
-        "eth": "ethereum",
-        "link": "chainlink"
+    symbol_map = {
+        "eth": "X:ETHUSD",
+        "link": "X:LINKUSD"
     }
-    token_id = coingecko_ids.get(symbol.lower())
-    if not token_id:
-        print("❌ توکن پشتیبانی نمی‌شود:", symbol)
+    polygon_symbol = symbol_map.get(symbol.lower(), "")
+    if not polygon_symbol:
+        print(f"❌ نماد ناشناس برای {symbol}")
         return None
 
-    url = f"https://api.coingecko.com/api/v3/coins/{token_id}/ohlc?vs_currency=usd&days=1"
-    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            print(f"❌ خطا در دریافت کندل {symbol.upper()}: Status {response.status_code} | {response.text}")
+        url = f"https://api.polygon.io/v2/aggs/ticker/{polygon_symbol}/prev?adjusted=true&apiKey={API_KEY}"
+        response = requests.get(url)
+        data = response.json()
+
+        if "results" not in data:
+            print(f"❌ داده‌ای به نام 'results' برای {symbol.upper()} یافت نشد.")
+            print("🔎 پاسخ کامل:", data)
             return None
 
-        raw = response.json()
-        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close"])
+        raw = data["results"]
+        df = pd.DataFrame(raw if isinstance(raw, list) else [raw])
+        df["timestamp"] = pd.to_datetime(df["t"], unit="ms")
+        df.rename(columns={"o": "open", "h": "high", "l": "low", "c": "close"}, inplace=True)
+        df = df[["timestamp", "open", "high", "low", "close"]]
         return df
+
     except Exception as e:
-        print(f"❌ استثنا در اتصال به CoinGecko برای {symbol.upper()}: {e}")
+        print(f"❌ خطا در دریافت داده برای {symbol.upper()}: {e}")
         return None
-
-def ema_signal(df):
-    df["ema_short"] = df["close"].ewm(span=EMA_SHORT).mean()
-    df["ema_long"] = df["close"].ewm(span=EMA_LONG).mean()
-
-    last_ema_short = df["ema_short"].iloc[-2]
-    last_ema_long = df["ema_long"].iloc[-2]
-    prev_ema_short = df["ema_short"].iloc[-3]
-    prev_ema_long = df["ema_long"].iloc[-3]
-
-    if prev_ema_short < prev_ema_long and last_ema_short > last_ema_long:
-        return "long"
-    elif prev_ema_short > prev_ema_long and last_ema_short < last_ema_long:
-        return "short"
-    return None
 
 def calculate_supertrend(df, period=SUPERTREND_PERIOD, multiplier=SUPERTREND_MULTIPLIER):
     hl2 = (df["high"] + df["low"]) / 2
-    atr = df["high"].rolling(period).max() - df["low"].rolling(period).min()
-    atr = atr.ewm(span=period, adjust=False).mean()
 
+    tr = pd.concat([
+        df["high"] - df["low"],
+        abs(df["high"] - df["close"].shift()),
+        abs(df["low"] - df["close"].shift())
+    ], axis=1).max(axis=1)
+
+    atr = tr.rolling(period).mean()
     upperband = hl2 + (multiplier * atr)
     lowerband = hl2 - (multiplier * atr)
 
     supertrend = [True] * len(df)
     for i in range(1, len(df)):
-        prev_close = df["close"].iloc[i - 1]
-        if prev_close <= upperband.iloc[i - 1]:
+        if df["close"].iloc[i] > upperband.iloc[i - 1]:
             supertrend[i] = True
-        else:
+        elif df["close"].iloc[i] < lowerband.iloc[i - 1]:
             supertrend[i] = False
+        else:
+            supertrend[i] = supertrend[i - 1]
 
     df["supertrend"] = supertrend
     return df
 
 def analyze_token(token):
-    print(f"\n🔍 دریافت و تحلیل برای: {token.upper()}")
+    print(f"\n🔍 تحلیل توکن: {token.upper()}")
     df = fetch_ohlc_data(token)
     if df is None or df.empty:
-        print("❌ دریافت کندل ناموفق بود.")
+        print("❌ دریافت داده ناموفق بود.")
         return None
 
+    df["ema_short"] = df["close"].ewm(span=EMA_SHORT).mean()
+    df["ema_long"] = df["close"].ewm(span=EMA_LONG).mean()
     df = calculate_supertrend(df)
-    st_signal = "long" if df["supertrend"].iloc[-2] else "short"
 
-    ema_sig = ema_signal(df)
+    current_close = df["close"].iloc[-1]
+    ema_short = df["ema_short"].iloc[-1]
+    ema_long = df["ema_long"].iloc[-1]
+    st_trend = df["supertrend"].iloc[-1]
 
-    print(f"📉 EMA short: {df['ema_short'].iloc[-2]:.2f}")
-    print(f"📈 EMA long: {df['ema_long'].iloc[-2]:.2f}")
-    print(f"🟢 وضعیت Supertrend: {st_signal.upper()}")
-    print(f"🔎 EMA signal: {ema_sig}")
+    print(f"📊 قیمت: {current_close:.2f} | EMA10: {ema_short:.2f} | EMA21: {ema_long:.2f}")
+    print(f"📈 روند سوپرترند: {'صعودی' if st_trend else 'نزولی'}")
 
-    if ema_sig == st_signal:
-        print(f"✅ سیگنال معتبر: {ema_sig.upper()}")
-        return ema_sig
+    if st_trend and current_close > ema_short and current_close > ema_long:
+        print("✅ سیگنال قوی: LONG")
+        return "long"
+    elif not st_trend and current_close < ema_short and current_close < ema_long:
+        print("✅ سیگنال قوی: SHORT")
+        return "short"
     else:
-        print("❌ هیچ سیگنال معتبری صادر نشد.")
+        print("❌ هیچ سیگنال معتبری یافت نشد.")
         return None

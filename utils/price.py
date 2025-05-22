@@ -1,34 +1,16 @@
-import requests
+from utils.polygon_price import get_polygon_candles
 
-def get_price_from_coingecko(token):
-    try:
-        response = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={token}&vs_currencies=usd")
-        if response.status_code == 429:
-            raise Exception("Rate limit from CoinGecko")
-        return response.json()[token]["usd"]
-    except Exception as e:
-        print(f"❌ CoinGecko شکست خورد: {e}")
+def get_price_data(token_symbol: str):
+    """
+    دریافت کندل‌های ۵ دقیقه‌ای برای توکن مشخص از Polygon.io
+    :param token_symbol: مثل ETH یا LINK
+    :return: لیست کندل‌ها یا None
+    """
+    print(f"📡 درخواست کندل برای {token_symbol} از Polygon.io")
+    candles = get_polygon_candles(symbol=token_symbol, interval="5", limit=100)
+
+    if not candles:
+        print(f"❌ دریافت قیمت برای {token_symbol} ناموفق بود.")
         return None
 
-def get_price_from_bitget(symbol):
-    try:
-        response = requests.get(f"https://api.bitget.com/api/spot/v1/market/ticker?symbol={symbol}")
-        data = response.json()
-        return float(data["data"]["close"])
-    except Exception as e:
-        print(f"❌ Bitget شکست خورد: {e}")
-        return None
-
-def get_current_price(token):
-    # نقشه بین توکن‌ها و سمبل بیت‌گت
-    bitget_map = {
-        "eth": "ETHUSDT",
-        "link": "LINKUSDT"
-    }
-
-    price = get_price_from_coingecko(token)
-    if price is None:
-        symbol = bitget_map.get(token)
-        price = get_price_from_bitget(symbol)
-
-    return price
+    return candles
