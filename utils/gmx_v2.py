@@ -1,71 +1,96 @@
 import json
 from web3 import Web3
 from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
-from utils.price import get_current_price
 
+# اتصال به آربیتروم
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
-account = w3.to_checksum_address(ACCOUNT_ADDRESS)
+account = w3.eth.account.from_key(PRIVATE_KEY)
 
+# بارگذاری ABIها
 with open("abi/PositionRouter.json") as f:
-    router_abi = json.load(f)
+    position_router_abi = json.load(f)
 
-router = w3.eth.contract(
-    address=w3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"),
-    abi=router_abi
-)
+with open("abi/Vault.json") as f:
+    vault_abi = json.load(f)
 
-WETH = w3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")
-LINK = w3.to_checksum_address("0xf97f4df75117a78c1A5a0DBb814Af92458539FB4")
+with open("abi/OrderBook.json") as f:
+    order_book_abi = json.load(f)
 
-def open_position(token_symbol, direction):
-    print(f"🚀 باز کردن پوزیشن برای {token_symbol.upper()} به صورت {direction.upper()}")
+# آدرس قراردادها در GMX V2
+POSITION_ROUTER = "0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868"
+VAULT = "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+ORDER_BOOK = "0x4296e307f108B2f583FF2F7B7270ee7831574Ae5"
+WETH = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
+LINK = "0xf97c3c3d8f7c9ceba6ba9da3cea7f3e60295a16a"
 
-    if token_symbol.lower() == "eth":
-        index_token = WETH
-    elif token_symbol.lower() == "link":
-        index_token = LINK
-    else:
-        print("❌ توکن ناشناخته است.")
-        return
+position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
+vault = w3.eth.contract(address=VAULT, abi=vault_abi)
+order_book = w3.eth.contract(address=ORDER_BOOK, abi=order_book_abi)
 
-    path = [index_token]
-    is_long = direction.lower() == "long"
-    price = get_current_price(token_symbol)
-    print(f"✅ قیمت فعلی: {price}")
+def open_position(token, is_long, entry_price):
+    print(f"🚀 باز کردن پوزیشن برای {token.upper()} - {'لانگ' if is_long else 'شورت'}")
 
-    collateral = 20
-    leverage = 5
-    size_usd = collateral * leverage
-    size_delta = int(size_usd * 1e30)
+    token_address = WETH if token == "eth" else LINK
+    size_usd = 100  # معادل ۲۰ دلار × لوریج ۵
+    collateral = w3.to_wei(20, 'ether')
+    acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 1e30)
 
-    if is_long:
-        tp_price = price * 1.035
-        sl_price = price * 0.978
-    else:
-        tp_price = price * 0.965
-        sl_price = price * 1.022
-
-    acceptable_price = int(price * 1e30)
-    execution_fee = w3.to_wei("0.003", "ether")
-
-    tx = router.functions.createIncreasePosition(
-        path,
-        index_token,
-        size_delta,
+    tx = position_router.functions.createIncreasePosition(
+        [token_address],
+        token_address,
+        collateral,
+        0,
+        int(size_usd * 1e30),
         is_long,
         acceptable_price,
-        execution_fee
+        0,
+        0
     ).build_transaction({
-        'from': account,
-        'value': execution_fee,
-        'nonce': w3.eth.get_transaction_count(account),
-        'gas': 800000,
-        'gasPrice': w3.to_wei('1.5', 'gwei')
+        "from": ACCOUNT_ADDRESS,
+        "value": 0,
+        "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
+        "gas": 900000,
+        "gasPrice": w3.to_wei("2", "gwei")
     })
 
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    print("✅ پوزیشن ثبت شد | TX Hash:", tx_hash.hex())
+    print(f"✅ پوزیشن باز شد: {w3.to_hex(tx_hash)}")
 
-    print(f"🎯 حد سود: {tp_price:.2f} | حد ضرر: {sl_price:.2f}")
-    return tx_hash.hex()
+    # تنظیم حد سود و ضرر واقعی
+    set_tp_sl(token, is_long, entry_price)
+
+def set_tp_sl(token, is_long, entry_price):
+    token_address = WETH if token == "eth" else LINK
+
+    # محاسبه TP و SL
+    tp_price = entry_price * (1.03 if is_long else 0.97)
+    sl_price = entry_price * (0.97 if is_long else 1.03)
+
+    tp_price_scaled = int(tp_price * 1e30)
+    sl_price_scaled = int(sl_price * 1e30)
+
+    size_delta = int(100 * 1e30)  # همون سایز پوزیشن
+
+    print(f"🎯 ارسال TP: {round(tp_price, 4)} | 🛡️ SL: {round(sl_price, 4)}")
+
+    for price, is_tp in [(tp_price_scaled, True), (sl_price_scaled, False)]:
+        tx = order_book.functions.createDecreaseOrder(
+            token_address,
+            size_delta,
+            token_address,
+            0,
+            is_long,
+            price,
+            is_tp
+        ).build_transaction({
+            "from": ACCOUNT_ADDRESS,
+            "value": 0,
+            "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
+            "gas": 900000,
+            "gasPrice": w3.to_wei("2", "gwei")
+        })
+
+        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        print(f"{'✅ TP' if is_tp else '✅ SL'} سفارش ثبت شد: {w3.to_hex(tx_hash)}")

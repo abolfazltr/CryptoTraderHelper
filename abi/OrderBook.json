@@ -1,0 +1,17 @@
+[
+  {
+    "inputs": [
+      {"internalType": "address", "name": "_path", "type": "address"},
+      {"internalType": "uint256", "name": "_sizeDelta", "type": "uint256"},
+      {"internalType": "address", "name": "_indexToken", "type": "address"},
+      {"internalType": "uint256", "name": "_collateralDelta", "type": "uint256"},
+      {"internalType": "bool", "name": "_isLong", "type": "bool"},
+      {"internalType": "uint256", "name": "_triggerPrice", "type": "uint256"},
+      {"internalType": "bool", "name": "_triggerAboveThreshold", "type": "bool"}
+    ],
+    "name": "createDecreaseOrder",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

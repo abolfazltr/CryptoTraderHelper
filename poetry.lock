@@ -1907,6 +1907,23 @@ files = [
 ]
 
 [[package]]
+name = "stups-tokens"
+version = "1.1.19"
+description = "Python library to manage OAuth access tokens"
+optional = false
+python-versions = "*"
+files = [
+    {file = "stups-tokens-1.1.19.tar.gz", hash = "sha256:7830ad83ccbfd52a9734608ffcefcca917137ce9480cc91a4fbd321a4aca3160"},
+    {file = "stups_tokens-1.1.19-py3-none-any.whl", hash = "sha256:317f4386763bac9dd5c0a4c8b0f9f0238dc3fa81de3c6fd1971b6b01662b5750"},
+]
+
+[package.dependencies]
+requests = "*"
+
+[package.extras]
+tests = ["flake8"]
+
+[[package]]
 name = "toolz"
 version = "1.0.0"
 description = "List processing tools and functional utilities"
@@ -2233,4 +2250,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "d9ca9fc91644e8ee472247979c2c1b3aabf8416af9c046ea230db5da370816ee"
+content-hash = "b7f0725d118166c87f6700202630e17c6f476e6f781efb6f894996d088f53650"
