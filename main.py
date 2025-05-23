@@ -1,49 +1,44 @@
 import time
 import sys
+from utils.price import get_current_price, get_recent_candles
 from utils.strategy import analyze_token
 from utils.gmx_v2 import open_position
+from datetime import datetime
 
 TOKENS = ["eth", "link"]
-NAMES = {"eth": "E", "link": "S"}
 
-while True:
-    print("\n==============================")
-    print("🕓 شروع بررسی بازار...\n")
+def log(msg):
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{now}] {msg}")
     sys.stdout.flush()
 
-    summary = []  # برای چاپ خلاصه آخر کار
+while True:
+    log("🕓 شروع بررسی بازار...")
 
     for token in TOKENS:
-        symbol = NAMES[token]
-        print(f"📊 بررسی توکن: {token.upper()} ({symbol})")
+        log(f"📊 بررسی توکن: {token.upper()}")
 
         try:
-            signal = analyze_token(token)
+            candles = get_recent_candles(token)
+            if candles is None or candles.empty:
+                log(f"⚠️ دریافت کندل برای {token.upper()} ناموفق بود.")
+                continue
+
+            signal = analyze_token(candles)
+            log(f"📈 سیگنال تحلیل شده برای {token.upper()}: {signal.upper()}")
+
+            price = get_current_price(token)
+            if price is None:
+                log(f"⚠️ دریافت قیمت لحظه‌ای برای {token.upper()} ناموفق بود.")
+                continue
+
+            if isinstance(signal, str) and signal in ["long", "short"]:
+                is_long = signal == "long"
+                log(f"✅ اجرای پوزیشن {signal.upper()} برای {token.upper()} در قیمت {price}")
+                open_position(token, is_long, price)
+
         except Exception as e:
-            print(f"❌ خطا در تحلیل {symbol}: {e}")
-            summary.append(f"{symbol} = ERROR")
-            continue
+            log(f"❌ خطا هنگام بررسی {token.upper()}: {e}")
 
-        if signal:
-            print(f"🚨 سیگنال برای {symbol}: {signal.upper()}")
-            try:
-                df = analyze_token(token)
-                if df is not None:
-                    price = df["close"].iloc[-1]
-                    print(f"💰 قیمت ورود: {price:.4f}")
-                    open_position(token, signal == "long", price)
-                    summary.append(f"{symbol} = {signal.upper()}")
-                else:
-                    print(f"❌ دریافت قیمت برای {symbol} ناموفق بود.")
-                    summary.append(f"{symbol} = NO PRICE")
-            except Exception as e:
-                print(f"❌ خطا در باز کردن پوزیشن {symbol}: {e}")
-                summary.append(f"{symbol} = FAIL")
-        else:
-            print(f"⛔ سیگنالی برای {symbol} یافت نشد.")
-            summary.append(f"{symbol} = NO SIGNAL")
-
-    print("\n🧾 خلاصه سیگنال‌ها:", " / ".join(summary))
-    print("\n⏳ منتظر ۵ دقیقه بعدی...\n")
-    print("==============================\n")
-    time.sleep(300)
+    log("⏳ در حال خواب تا اجرای بعدی...\n")
+    time.sleep(900)  # هر 15 دقیقه اجرا شود

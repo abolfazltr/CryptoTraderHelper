@@ -24,12 +24,12 @@ def open_position(token, is_long, entry_price):
     size_usd = 100  # معادل ۲۰ دلار × لوریج ۵
     collateral = w3.to_wei(20, 'ether')
 
-    # محاسبه قیمت‌های قابل قبول
+    # محاسبه قیمت قابل قبول
     acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 1e30)
 
-    # محاسبه TP و SL برای استفاده در همان تراکنش
-    tp_price = entry_price * (1.03 if is_long else 0.97)
-    sl_price = entry_price * (0.97 if is_long else 1.03)
+    # TP = 4.5٪ سود | SL = 2.5٪ ضرر
+    tp_price = entry_price * (1.045 if is_long else 0.955)
+    sl_price = entry_price * (0.975 if is_long else 1.025)
     tp_price_scaled = int(tp_price * 1e30)
     sl_price_scaled = int(sl_price * 1e30)
 

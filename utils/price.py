@@ -1,16 +1,19 @@
-from utils.polygon_price import get_polygon_candles
+from utils.twelvedata_price import get_twelvedata_candles
 
-def get_price_data(token_symbol: str):
-    """
-    دریافت کندل‌های ۵ دقیقه‌ای برای توکن مشخص از Polygon.io
-    :param token_symbol: مثل ETH یا LINK
-    :return: لیست کندل‌ها یا None
-    """
-    print(f"📡 درخواست کندل برای {token_symbol} از Polygon.io")
-    candles = get_polygon_candles(symbol=token_symbol, interval="5", limit=100)
+def get_current_price(token: str):
+    candles = get_twelvedata_candles(token, interval="15min", limit=1)
+    if candles is None or candles.empty:
+        print(f"❌ دریافت قیمت برای {token} ناموفق بود")
+        return None
 
-    if not candles:
-        print(f"❌ دریافت قیمت برای {token_symbol} ناموفق بود.")
+    current_price = candles["close"].iloc[-1].item()  # تبدیل به float
+    print(f"🟡 قیمت لحظه‌ای {token.upper()}: {current_price}")
+    return current_price
+
+def get_recent_candles(token: str, limit: int = 100):
+    candles = get_twelvedata_candles(token, interval="15min", limit=limit)
+    if candles is None or candles.empty:
+        print(f"❌ دریافت کندل‌ها برای {token} ناموفق بود")
         return None
 
     return candles
