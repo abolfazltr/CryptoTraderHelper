@@ -10,6 +10,14 @@ def calculate_ema(df):
     df["ema_long"] = df["close"].ewm(span=EMA_LONG, adjust=False).mean()
     return df
 
+def calculate_rsi(df, period=14):
+    delta = df["close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    df["rsi"] = 100 - (100 / (1 + rs))
+    return df
+
 def calculate_supertrend(df, period=SUPERTREND_PERIOD, multiplier=SUPERTREND_MULTIPLIER):
     hl2 = (df["high"] + df["low"]) / 2
     tr1 = df["high"] - df["low"]
@@ -38,59 +46,40 @@ def calculate_supertrend(df, period=SUPERTREND_PERIOD, multiplier=SUPERTREND_MUL
 def analyze_token(df):
     df = calculate_ema(df)
     df = calculate_supertrend(df)
+    df = calculate_rsi(df)
 
-    if len(df) < 3:
+    if len(df) < 20:
         print("⚠️ تعداد کندل‌ها کافی نیست.")
         return "none"
 
     latest = df.iloc[-1]
-    previous = df.iloc[-2]
-    before = df.iloc[-3]
 
-    # سیگنال لانگ
+    # ورود به پوزیشن لانگ
     if (
-        float(before["ema_short"]) < float(before["ema_long"]) and
-        float(previous["ema_short"]) < float(previous["ema_long"]) and
-        float(latest["ema_short"]) > float(latest["ema_long"]) and
-        bool(latest["supertrend"]) and
-        float(latest["close"]) > float(latest["ema_long"])
+        latest["supertrend"] == True and
+        latest["ema_short"] > latest["ema_long"] and
+        latest["close"] > latest["ema_long"] and
+        40 <= latest["rsi"] <= 65
     ):
         return "long"
 
-    # سیگنال شورت
+    # ورود به پوزیشن شورت
     elif (
-        float(before["ema_short"]) > float(before["ema_long"]) and
-        float(previous["ema_short"]) > float(previous["ema_long"]) and
-        float(latest["ema_short"]) < float(latest["ema_long"]) and
-        not bool(latest["supertrend"]) and
-        float(latest["close"]) < float(latest["ema_long"])
+        latest["supertrend"] == False and
+        latest["ema_short"] < latest["ema_long"] and
+        latest["close"] < latest["ema_long"] and
+        35 <= latest["rsi"] <= 60
     ):
         return "short"
 
     else:
         print("⛔ سیگنال رد شد به دلایل زیر:")
-        if not (
-            float(before["ema_short"]) < float(before["ema_long"]) and
-            float(previous["ema_short"]) < float(previous["ema_long"]) and
-            float(latest["ema_short"]) > float(latest["ema_long"])
-        ) and (
-            bool(latest["supertrend"]) and float(latest["close"]) > float(latest["ema_long"])
-        ):
-            print("❌ کراس EMA معتبر نیست (برای لانگ)")
-
-        if not (
-            float(before["ema_short"]) > float(before["ema_long"]) and
-            float(previous["ema_short"]) > float(previous["ema_long"]) and
-            float(latest["ema_short"]) < float(latest["ema_long"])
-        ) and (
-            not bool(latest["supertrend"]) and float(latest["close"]) < float(latest["ema_long"])
-        ):
-            print("❌ کراس EMA معتبر نیست (برای شورت)")
-
-        if not bool(latest["supertrend"]):
-            print("❌ Supertrend حالت صعودی نداره")
-
-        if bool(latest["supertrend"]):
-            print("❌ Supertrend حالت نزولی نداره")
-
+        if not latest["supertrend"]:
+            print("❌ Supertrend صعودی نیست")
+        if not (latest["ema_short"] > latest["ema_long"]):
+            print("❌ EMA کراس صعودی نیست")
+        if not (latest["close"] > latest["ema_long"]):
+            print("❌ قیمت بالای EMA_LONG نیست")
+        if not (40 <= latest["rsi"] <= 65):
+            print(f"❌ RSI مناسب نیست: {latest['rsi']:.2f}")
         return "none"
