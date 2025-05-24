@@ -54,6 +54,8 @@ def analyze_token(df):
 
     latest = df.iloc[-1]
 
+    print(f"🔎 وضعیت تحلیل:\nSupertrend: {latest['supertrend']}\nEMA10: {latest['ema_short']:.2f}\nEMA21: {latest['ema_long']:.2f}\nClose: {latest['close']:.2f}\nRSI: {latest['rsi']:.2f}")
+
     # ورود به پوزیشن لانگ
     if (
         latest["supertrend"] == True and
@@ -61,6 +63,7 @@ def analyze_token(df):
         latest["close"] > latest["ema_long"] and
         40 <= latest["rsi"] <= 65
     ):
+        print("✅ سیگنال لانگ صادر شد.")
         return "long"
 
     # ورود به پوزیشن شورت
@@ -70,15 +73,16 @@ def analyze_token(df):
         latest["close"] < latest["ema_long"] and
         35 <= latest["rsi"] <= 60
     ):
+        print("✅ سیگنال شورت صادر شد.")
         return "short"
 
     else:
         print("⛔ سیگنال رد شد به دلایل زیر:")
-        if not latest["supertrend"]:
+        if latest["supertrend"] != True:
             print("❌ Supertrend صعودی نیست")
-        if not (latest["ema_short"] > latest["ema_long"]):
+        if latest["ema_short"] <= latest["ema_long"]:
             print("❌ EMA کراس صعودی نیست")
-        if not (latest["close"] > latest["ema_long"]):
+        if latest["close"] <= latest["ema_long"]:
             print("❌ قیمت بالای EMA_LONG نیست")
         if not (40 <= latest["rsi"] <= 65):
             print(f"❌ RSI مناسب نیست: {latest['rsi']:.2f}")
