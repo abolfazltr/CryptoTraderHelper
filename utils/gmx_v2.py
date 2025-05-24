@@ -1,4 +1,5 @@
 import json
+import time
 from web3 import Web3
 from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
 
@@ -90,30 +91,37 @@ def open_position(token, is_long, entry_price):
     should_unwrap_native_token = False
     callback_gas_limit = 0
 
-    tx = position_router.functions.createIncreasePosition(
-        [token_address],
-        token_address,
-        collateral,
-        0,
-        int(size_usd * 1e30),
-        is_long,
-        acceptable_price,
-        execution_fee,
-        referral_code,
-        callback_target,
-        should_unwrap_native_token,
-        callback_gas_limit
-    ).build_transaction({
-        "from": ACCOUNT_ADDRESS,
-        "value": execution_fee,
-        "nonce": w3.eth.get_transaction_count(ACCOUNT_ADDRESS),
-        "gas": 900000,
-        "gasPrice": w3.to_wei("2", "gwei")
-    })
+    for attempt in range(3):
+        try:
+            nonce = w3.eth.get_transaction_count(ACCOUNT_ADDRESS)
+            tx = position_router.functions.createIncreasePosition(
+                [token_address],
+                token_address,
+                collateral,
+                0,
+                int(size_usd * 1e30),
+                is_long,
+                acceptable_price,
+                execution_fee,
+                referral_code,
+                callback_target,
+                should_unwrap_native_token,
+                callback_gas_limit
+            ).build_transaction({
+                "from": ACCOUNT_ADDRESS,
+                "value": execution_fee,
+                "nonce": nonce,
+                "gas": 900000,
+                "gasPrice": w3.to_wei("2", "gwei")
+            })
 
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    print(f"✅ پوزیشن باز شد با TP/SL واقعی: {w3.to_hex(tx_hash)}")
+            signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            print(f"✅ پوزیشن باز شد با TP/SL واقعی: {w3.to_hex(tx_hash)}")
 
-    # تنظیم خودکار حد سود و حد ضرر بعد از باز شدن پوزیشن
-    set_tp_sl(token, is_long, entry_price)
+            # تنظیم TP و SL بعد از باز شدن پوزیشن
+            set_tp_sl(token, is_long, entry_price)
+            break
+        except Exception as e:
+            print(f"⛔ تلاش {attempt+1} برای باز کردن پوزیشن ناموفق بود: {str(e)}")
+            time.sleep(3)
