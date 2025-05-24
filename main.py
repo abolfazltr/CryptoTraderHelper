@@ -1,9 +1,9 @@
 import time
 import sys
+from datetime import datetime
 from utils.price import get_current_price, get_recent_candles
 from utils.strategy import analyze_token
 from utils.gmx_v2 import open_position
-from datetime import datetime
 
 TOKENS = ["eth", "link"]
 
@@ -41,4 +41,4 @@ while True:
             log(f"❌ خطا هنگام بررسی {token.upper()}: {e}")
 
     log("⏳ در حال خواب تا اجرای بعدی...\n")
-    time.sleep(900)  # هر 15 دقیقه اجرا شود
+    time.sleep(900)  # اجرای هر 15 دقیقه

@@ -6,13 +6,13 @@
       { "internalType": "uint256", "name": "_amountIn", "type": "uint256" },
       { "internalType": "uint256", "name": "_minOut", "type": "uint256" },
       { "internalType": "uint256", "name": "_sizeDelta", "type": "uint256" },
-      { "internalType": "address", "name": "_collateralToken", "type": "address" },
-      { "internalType": "address", "name": "_receiver", "type": "address" },
-      { "internalType": "uint256", "name": "_acceptablePrice", "type": "uint256" },
       { "internalType": "bool", "name": "_isLong", "type": "bool" },
+      { "internalType": "uint256", "name": "_acceptablePrice", "type": "uint256" },
       { "internalType": "uint256", "name": "_executionFee", "type": "uint256" },
       { "internalType": "bytes32", "name": "_referralCode", "type": "bytes32" },
-      { "internalType": "address", "name": "_callbackTarget", "type": "address" }
+      { "internalType": "address", "name": "_callbackTarget", "type": "address" },
+      { "internalType": "bool", "name": "_shouldUnwrapNativeToken", "type": "bool" },
+      { "internalType": "uint256", "name": "_callbackGasLimit", "type": "uint256" }
     ],
     "name": "createIncreasePosition",
     "outputs": [],
