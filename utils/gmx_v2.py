@@ -1,7 +1,7 @@
 import json
 import time
 from web3 import Web3
-from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
+from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
 
 # اتصال به آربیتروم
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
@@ -22,7 +22,7 @@ LINK = Web3.to_checksum_address("0xf97c3c3d8f7c9ceba6ba9da3cea7f3e60295a16a")
 position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
 orderbook = w3.eth.contract(address=ORDER_BOOK, abi=orderbook_abi)
 
-
+# تنظیم حد سود و حد ضرر واقعی
 def set_tp_sl(token, is_long, entry_price):
     print(f"🎯 تنظیم حد سود و حد ضرر برای {token.upper()}")
 
@@ -78,14 +78,17 @@ def set_tp_sl(token, is_long, entry_price):
     print(f"✅ حد سود ثبت شد: {w3.to_hex(tx_hash_tp)}")
     print(f"✅ حد ضرر ثبت شد: {w3.to_hex(tx_hash_sl)}")
 
-
+# تابع باز کردن پوزیشن واقعی
 def open_position(token, is_long, entry_price):
     print(f"🚀 باز کردن پوزیشن واقعی برای {token.upper()} - {'لانگ' if is_long else 'شورت'}")
 
     token_address = WETH if token == "eth" else LINK
     size_usd = 100
     collateral = w3.to_wei(20, 'ether')
-    acceptable_price = int(entry_price * (1.01 if is_long else 0.99) * 1e30)
+
+    # اصلاح مقدار acceptable_price
+    acceptable_price = int(entry_price * (0.99 if is_long else 1.01) * 1e30)
+
     execution_fee = w3.to_wei("0.0003", "ether")
     referral_code = b'\x00' * 32
     callback_target = "0x0000000000000000000000000000000000000000"
