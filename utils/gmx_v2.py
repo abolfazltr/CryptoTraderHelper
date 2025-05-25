@@ -1,7 +1,6 @@
-import json
-import time
-from web3 import Web3
 from config.settings import PRIVATE_KEY, RPC_URL, ACCOUNT_ADDRESS
+from web3 import Web3
+import json, time
 
 # اتصال به آربیتروم
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
@@ -117,10 +116,15 @@ def open_position(token, is_long, entry_price):
 
             signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            print(f"✅ پوزیشن باز شد با TP/SL واقعی: {w3.to_hex(tx_hash)}")
 
-            # تنظیم TP و SL بعد از باز شدن پوزیشن
-            set_tp_sl(token, is_long, entry_price)
+            print(f"⏳ منتظر تایید تراکنش: {w3.to_hex(tx_hash)}")
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+            if receipt.status == 1:
+                print(f"✅ پوزیشن باز شد با TP/SL واقعی: {w3.to_hex(tx_hash)}")
+                set_tp_sl(token, is_long, entry_price)
+            else:
+                print(f"❌ تراکنش ناموفق بود! پوزیشن باز نشد. هش: {w3.to_hex(tx_hash)}")
             break
         except Exception as e:
             print(f"⛔ تلاش {attempt+1} برای باز کردن پوزیشن ناموفق بود: {str(e)}")
