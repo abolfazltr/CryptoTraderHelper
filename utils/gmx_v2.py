@@ -22,17 +22,23 @@ LINK = Web3.to_checksum_address("0xf97c3c3d8f7c9ceba6ba9da3cea7f3e60295a16a")
 position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
 orderbook = w3.eth.contract(address=ORDER_BOOK, abi=orderbook_abi)
 
-# تنظیم حد سود و حد ضرر واقعی
+# تابع تنظیم حد سود و حد ضرر واقعی
 def set_tp_sl(token, is_long, entry_price):
     print(f"🎯 تنظیم حد سود و حد ضرر برای {token.upper()}")
 
     token_address = WETH if token == "eth" else LINK
     size_usd = 100
-    tp_price = entry_price * (1.045 if is_long else 0.955)
-    sl_price = entry_price * (0.975 if is_long else 1.025)
+    size_delta = int(size_usd * 1e30)
+
+    if is_long:
+        tp_price = entry_price * 1.035  # +3.5%
+        sl_price = entry_price * 0.98   # -2.0%
+    else:
+        tp_price = entry_price * 0.96   # -4.0%
+        sl_price = entry_price * 1.025  # +2.5%
+
     tp_price_scaled = int(tp_price * 1e30)
     sl_price_scaled = int(sl_price * 1e30)
-    size_delta = int(size_usd * 1e30)
     nonce = w3.eth.get_transaction_count(ACCOUNT_ADDRESS)
 
     tx_tp = orderbook.functions.createDecreasePosition(
@@ -84,12 +90,13 @@ def open_position(token, is_long, entry_price):
 
     token_address = WETH if token == "eth" else LINK
     size_usd = 100
-    collateral = w3.to_wei(20, 'ether')
+    collateral_usd = 20
+    collateral = int((collateral_usd / entry_price) * 1e18)  # تبدیل دلار به ETH (wei)
 
-    # اصلاح مقدار acceptable_price
     acceptable_price = int(entry_price * (0.99 if is_long else 1.01) * 1e30)
+    min_out = int(entry_price * 0.99 * 1e30)
 
-    execution_fee = w3.to_wei("0.0003", "ether")
+    execution_fee = w3.to_wei("0.0006", "ether")
     referral_code = b'\x00' * 32
     callback_target = "0x0000000000000000000000000000000000000000"
     should_unwrap_native_token = False
@@ -103,7 +110,7 @@ def open_position(token, is_long, entry_price):
                 [token_address],
                 token_address,
                 collateral,
-                0,
+                min_out,
                 int(size_usd * 1e30),
                 is_long,
                 acceptable_price,
