@@ -84,19 +84,19 @@ def set_tp_sl(token, is_long, entry_price):
     print(f"✅ حد سود ثبت شد: {w3.to_hex(tx_hash_tp)}")
     print(f"✅ حد ضرر ثبت شد: {w3.to_hex(tx_hash_sl)}")
 
-# تابع باز کردن پوزیشن واقعی
+# تابع باز کردن پوزیشن واقعی (نسخه سبک‌شده)
 def open_position(token, is_long, entry_price):
     print(f"🚀 باز کردن پوزیشن واقعی برای {token.upper()} - {'لانگ' if is_long else 'شورت'}")
 
     token_address = WETH if token == "eth" else LINK
     size_usd = 100
     collateral_usd = 20
-    collateral = int((collateral_usd / entry_price) * 1e18)  # تبدیل دلار به ETH (wei)
+    collateral = int((collateral_usd / entry_price) * 1e18)
 
     acceptable_price = int(entry_price * (0.99 if is_long else 1.01) * 1e30)
     min_out = int(entry_price * 0.99 * 1e30)
 
-    execution_fee = w3.to_wei("0.0006", "ether")
+    execution_fee = w3.to_wei("0.0004", "ether")  # کمتر شده برای موفقیت بیشتر
     referral_code = b'\x00' * 32
     callback_target = "0x0000000000000000000000000000000000000000"
     should_unwrap_native_token = False
@@ -123,7 +123,7 @@ def open_position(token, is_long, entry_price):
                 "from": ACCOUNT_ADDRESS,
                 "value": execution_fee,
                 "nonce": nonce,
-                "gas": 900000,
+                "gas": 700000,
                 "gasPrice": w3.to_wei("2", "gwei")
             })
 
