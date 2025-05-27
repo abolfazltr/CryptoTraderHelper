@@ -3,22 +3,27 @@ import time
 from web3 import Web3
 from config.settings import RPC_URL, PRIVATE_KEY, ACCOUNT_ADDRESS
 
+# اتصال به شبکه
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 account = w3.eth.account.from_key(PRIVATE_KEY)
 
+# بارگذاری ABIها
 with open("abi/PositionRouter.json") as f:
     position_router_abi = json.load(f)
 with open("abi/OrderBook.json") as f:
     orderbook_abi = json.load(f)
 
+# آدرس قراردادها
 POSITION_ROUTER = Web3.to_checksum_address("0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868")
 ORDER_BOOK = Web3.to_checksum_address("0x58B5730a272dfC2D6eEa383753d4a45C07F1B4Ce")
 WETH = Web3.to_checksum_address("0x82af49447d8a07e3bd95bd0d56f35241523fbab1")
 LINK = Web3.to_checksum_address("0xf97c3c3d8f7c9ceba6ba9da3cea7f3e60295a16a")
 
+# ساخت اینستنس قراردادها
 position_router = w3.eth.contract(address=POSITION_ROUTER, abi=position_router_abi)
 orderbook = w3.eth.contract(address=ORDER_BOOK, abi=orderbook_abi)
 
+# تنظیم حد سود و ضرر واقعی
 def set_tp_sl(token, is_long, entry_price):
     print(f"🎯 تنظیم حد سود و حد ضرر برای {token.upper()}")
 
@@ -51,7 +56,7 @@ def set_tp_sl(token, is_long, entry_price):
         "value": w3.to_wei("0.0003", "ether"),
         "nonce": nonce,
         "gas": 800000,
-        "gasPrice": w3.to_wei("2", "gwei")
+        "gasPrice": w3.to_wei("5", "gwei")
     })
 
     tx_sl = orderbook.functions.createDecreasePosition(
@@ -68,7 +73,7 @@ def set_tp_sl(token, is_long, entry_price):
         "value": w3.to_wei("0.0003", "ether"),
         "nonce": nonce + 1,
         "gas": 800000,
-        "gasPrice": w3.to_wei("2", "gwei")
+        "gasPrice": w3.to_wei("5", "gwei")
     })
 
     signed_tp = w3.eth.account.sign_transaction(tx_tp, private_key=PRIVATE_KEY)
@@ -80,6 +85,7 @@ def set_tp_sl(token, is_long, entry_price):
     print(f"✅ حد سود ثبت شد: {w3.to_hex(tx_hash_tp)}")
     print(f"✅ حد ضرر ثبت شد: {w3.to_hex(tx_hash_sl)}")
 
+# باز کردن پوزیشن واقعی در GMX V2
 def open_position(token, is_long, entry_price):
     print(f"🚀 باز کردن پوزیشن واقعی برای {token.upper()} - {'لانگ' if is_long else 'شورت'}")
 
@@ -88,8 +94,9 @@ def open_position(token, is_long, entry_price):
     collateral_usd = 40
     collateral = int((collateral_usd / entry_price) * 1e18)
 
-    acceptable_price = int(entry_price * (0.99 if is_long else 1.01) * 1e30)
-    min_out = int(entry_price * 0.99 * 1e30)
+    # تنظیمات دقیق برای تایم‌فریم 15 دقیقه‌ای
+    acceptable_price = int(entry_price * (1.012 if is_long else 0.988) * 1e30)
+    min_out = 0
 
     execution_fee = w3.to_wei("0.0004", "ether")
     referral_code = b'\x00' * 32
@@ -119,7 +126,7 @@ def open_position(token, is_long, entry_price):
                 "value": execution_fee,
                 "nonce": nonce,
                 "gas": 700000,
-                "gasPrice": w3.to_wei("2", "gwei")
+                "gasPrice": w3.to_wei("5", "gwei")
             })
 
             signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
